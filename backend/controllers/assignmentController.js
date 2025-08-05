@@ -4,6 +4,13 @@ const User = require('../models/User');
 const logger = require('../config/logger');
 const { AuditService } = require('../services/auditService');
 const emailService = require('../services/emailService');
+const { 
+  sendAssignmentAcceptedNotificationWhatsApp,
+  sendAssignmentRejectedNotificationWhatsApp,
+  sendAssignmentStartedNotificationWhatsApp,
+  sendAssignmentCompletedNotificationWhatsApp,
+  sendIssueResolvedNotificationWhatsApp
+} = require('../services/whatsappService');
 
 /**
  * Get all assignments (filtered by user role)
@@ -189,9 +196,14 @@ const acceptAssignment = async (req, res) => {
 
     // Update issue status
     const issue = await Issue.findById(assignment.issue);
-    if (issue) {
-      await issue.updateStatus('assigned');
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: 'Issue not found for this assignment'
+      });
     }
+    
+    await issue.updateStatus('assigned');
 
     // Log audit event
     await AuditService.logAction(req.user._id, 'ASSIGNMENT_ACCEPTED', {
@@ -202,11 +214,49 @@ const acceptAssignment = async (req, res) => {
     // Send notification to committee
     const committeeMember = await User.findById(assignment.assignedBy);
     if (committeeMember) {
-      await emailService.sendAssignmentAcceptedNotification(committeeMember.email, {
-        assignmentId: assignment._id,
-        title: issue?.title || 'Unknown Issue',
-        technicianName: req.user.name
-      });
+      try {
+        await emailService.sendAssignmentAcceptedNotification(committeeMember.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name
+        });
+        
+        // Send WhatsApp notification to committee member
+        if (committeeMember.phoneNumber && committeeMember.isMobileVerified) {
+          await sendAssignmentAcceptedNotificationWhatsApp(committeeMember.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to committee:', notificationError);
+        // Don't fail the assignment acceptance if notification fails
+      }
+    }
+
+    // Send notification to resident (issue reporter)
+    const resident = await User.findById(issue.reportedBy);
+    if (resident) {
+      try {
+        await emailService.sendAssignmentAcceptedNotification(resident.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name
+        });
+        
+        // Send WhatsApp notification to resident
+        if (resident.phoneNumber && resident.isMobileVerified) {
+          await sendAssignmentAcceptedNotificationWhatsApp(resident.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to resident:', notificationError);
+        // Don't fail the assignment acceptance if notification fails
+      }
     }
 
     logger.info(`Assignment accepted: ${assignment._id} by technician: ${req.user._id}`);
@@ -262,13 +312,18 @@ const rejectAssignment = async (req, res) => {
 
     // Update issue status back to new
     const issue = await Issue.findById(assignment.issue);
-    if (issue) {
-      issue.assignedTo = null;
-      issue.assignedBy = null;
-      issue.status = 'new';
-      issue.assignedAt = null;
-      await issue.save();
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: 'Issue not found for this assignment'
+      });
     }
+    
+    issue.assignedTo = null;
+    issue.assignedBy = null;
+    issue.status = 'new';
+    issue.assignedAt = null;
+    await issue.save();
 
     // Log audit event
     await AuditService.logAction(req.user._id, 'ASSIGNMENT_REJECTED', {
@@ -280,12 +335,53 @@ const rejectAssignment = async (req, res) => {
     // Send notification to committee
     const committeeMember = await User.findById(assignment.assignedBy);
     if (committeeMember) {
-      await emailService.sendAssignmentRejectedNotification(committeeMember.email, {
-        assignmentId: assignment._id,
-        title: issue?.title || 'Unknown Issue',
-        technicianName: req.user.name,
-        reason
-      });
+      try {
+        await emailService.sendAssignmentRejectedNotification(committeeMember.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name,
+          reason
+        });
+        
+        // Send WhatsApp notification to committee member
+        if (committeeMember.phoneNumber && committeeMember.isMobileVerified) {
+          await sendAssignmentRejectedNotificationWhatsApp(committeeMember.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name,
+            reason
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to committee:', notificationError);
+        // Don't fail the assignment rejection if notification fails
+      }
+    }
+
+    // Send notification to resident (issue reporter)
+    const resident = await User.findById(issue.reportedBy);
+    if (resident) {
+      try {
+        await emailService.sendAssignmentRejectedNotification(resident.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name,
+          reason
+        });
+        
+        // Send WhatsApp notification to resident
+        if (resident.phoneNumber && resident.isMobileVerified) {
+          await sendAssignmentRejectedNotificationWhatsApp(resident.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name,
+            reason
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to resident:', notificationError);
+        // Don't fail the assignment rejection if notification fails
+      }
     }
 
     logger.info(`Assignment rejected: ${assignment._id} by technician: ${req.user._id}`);
@@ -370,9 +466,14 @@ const completeAssignment = async (req, res) => {
 
     // Update issue status
     const issue = await Issue.findById(assignment.issue);
-    if (issue) {
-      await issue.updateStatus('resolved');
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: 'Issue not found for this assignment'
+      });
     }
+    
+    await issue.updateStatus('resolved');
 
     // Log audit event
     await AuditService.logAction(req.user._id, 'ASSIGNMENT_COMPLETED', {
@@ -383,28 +484,57 @@ const completeAssignment = async (req, res) => {
     });
 
     // Send notification to reporter
-    if (issue) {
-      const reporter = await User.findById(issue.reportedBy);
-      if (reporter) {
+    const reporter = await User.findById(issue.reportedBy);
+    if (reporter) {
+      try {
         await emailService.sendIssueResolvedNotification(reporter.email, {
           issueId: issue._id,
-          title: issue.title,
+          title: issue.title || 'Issue',
           status: 'resolved',
           completedBy: req.user.name
         });
+        
+        // Send WhatsApp notification to reporter
+        if (reporter.phoneNumber && reporter.isMobileVerified) {
+          await sendIssueResolvedNotificationWhatsApp(reporter.phoneNumber, {
+            issueId: issue._id,
+            title: issue.title || 'Issue',
+            status: 'resolved',
+            completedBy: req.user.name
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to reporter:', notificationError);
+        // Don't fail the assignment completion if notification fails
       }
     }
 
     // Send notification to committee
     const committeeMember = await User.findById(assignment.assignedBy);
     if (committeeMember) {
-      await emailService.sendAssignmentCompletedNotification(committeeMember.email, {
-        assignmentId: assignment._id,
-        issueTitle: issue?.title,
-        technicianName: req.user.name,
-        timeSpent,
-        completionNotes
-      });
+      try {
+        await emailService.sendAssignmentCompletedNotification(committeeMember.email, {
+          assignmentId: assignment._id,
+          issueTitle: issue.title || 'Issue',
+          technicianName: req.user.name,
+          timeSpent,
+          completionNotes
+        });
+        
+        // Send WhatsApp notification to committee member
+        if (committeeMember.phoneNumber && committeeMember.isMobileVerified) {
+          await sendAssignmentCompletedNotificationWhatsApp(committeeMember.phoneNumber, {
+            assignmentId: assignment._id,
+            issueTitle: issue.title || 'Issue',
+            technicianName: req.user.name,
+            timeSpent,
+            completionNotes
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to committee:', notificationError);
+        // Don't fail the assignment completion if notification fails
+      }
     }
 
     logger.info(`Assignment completed: ${assignment._id} by technician: ${req.user._id}`);
@@ -522,10 +652,14 @@ const startWork = async (req, res) => {
 
     // Update issue status to in_progress
     const issue = await Issue.findById(assignment.issue);
-    if (issue) {
-      issue.status = 'in_progress';
-      await issue.save();
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: 'Issue not found for this assignment'
+      });
     }
+    
+    await issue.updateStatus('in_progress');
 
     // Log audit event
     await AuditService.logAction(req.user._id, 'ASSIGNMENT_STARTED', {
@@ -536,11 +670,49 @@ const startWork = async (req, res) => {
     // Send notification to committee
     const committeeMember = await User.findById(assignment.assignedBy);
     if (committeeMember) {
-      await emailService.sendAssignmentStartedNotification(committeeMember.email, {
-        assignmentId: assignment._id,
-        title: issue?.title || 'Unknown Issue',
-        technicianName: req.user.name
-      });
+      try {
+        await emailService.sendAssignmentStartedNotification(committeeMember.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name
+        });
+        
+        // Send WhatsApp notification to committee member
+        if (committeeMember.phoneNumber && committeeMember.isMobileVerified) {
+          await sendAssignmentStartedNotificationWhatsApp(committeeMember.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to committee:', notificationError);
+        // Don't fail the work start if notification fails
+      }
+    }
+
+    // Send notification to resident (issue reporter)
+    const resident = await User.findById(issue.reportedBy);
+    if (resident) {
+      try {
+        await emailService.sendAssignmentStartedNotification(resident.email, {
+          assignmentId: assignment._id,
+          title: issue.title || 'Issue',
+          technicianName: req.user.name
+        });
+        
+        // Send WhatsApp notification to resident
+        if (resident.phoneNumber && resident.isMobileVerified) {
+          await sendAssignmentStartedNotificationWhatsApp(resident.phoneNumber, {
+            assignmentId: assignment._id,
+            title: issue.title || 'Issue',
+            technicianName: req.user.name
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Error sending notification to resident:', notificationError);
+        // Don't fail the work start if notification fails
+      }
     }
 
     logger.info(`Work started on assignment: ${assignment._id} by technician: ${req.user._id}`);

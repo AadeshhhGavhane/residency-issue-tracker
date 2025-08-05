@@ -66,6 +66,15 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const issueRoutes = require('./routes/issues');
 const assignmentRoutes = require('./routes/assignments');
+const feedbackRoutes = require('./routes/feedback');
+const recurringAlertRoutes = require('./routes/recurringAlerts');
+const translationRoutes = require('./routes/translation');
+const RecurringAlertService = require('./services/recurringAlertService');
+
+// Import middleware
+const { protect } = require('./middleware/auth');
+const { requireRole } = require('./middleware/roleAuth');
+const { detectLanguage, translateResponse, updateUserLanguage } = require('./middleware/language');
 
 // Import Swagger
 const swaggerUi = require('swagger-ui-express');
@@ -94,11 +103,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Mount routes
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/issues', issueRoutes);
-app.use('/api/assignments', assignmentRoutes);
+// Mount routes with language middleware
+app.use('/api/auth', detectLanguage, translateResponse, authRoutes);
+app.use('/api/user', detectLanguage, translateResponse, userRoutes);
+app.use('/api/issues', detectLanguage, translateResponse, issueRoutes);
+app.use('/api/assignments', detectLanguage, translateResponse, assignmentRoutes);
+app.use('/api/feedback', detectLanguage, translateResponse, feedbackRoutes);
+app.use('/api/recurring-alerts', detectLanguage, translateResponse, recurringAlertRoutes);
+app.use('/api/translate', detectLanguage, translateResponse, translationRoutes);
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
@@ -134,6 +146,26 @@ app.listen(PORT, () => {
   logger.info(`🌍 Environment: ${process.env.NODE_ENV}`);
   logger.info(`📊 Health check: http://localhost:${PORT}/api/health`);
   logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+  
+  // Schedule recurring problem detection (run every 24 hours)
+  setInterval(async () => {
+    try {
+      logger.info('Running scheduled recurring problem detection...');
+      await RecurringAlertService.detectRecurringProblems();
+    } catch (error) {
+      logger.error('Error in scheduled recurring problem detection:', error);
+    }
+  }, 24 * 60 * 60 * 1000); // 24 hours
+  
+  // Run initial detection after 5 minutes
+  setTimeout(async () => {
+    try {
+      logger.info('Running initial recurring problem detection...');
+      await RecurringAlertService.detectRecurringProblems();
+    } catch (error) {
+      logger.error('Error in initial recurring problem detection:', error);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
 });
 
 module.exports = app; 

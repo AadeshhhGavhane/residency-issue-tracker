@@ -15,6 +15,11 @@ const generateEmailVerificationToken = () => {
   return generateToken(32);
 };
 
+// Generate mobile verification token
+const generateMobileVerificationToken = () => {
+  return generateToken(32);
+};
+
 // Hash token for storage (similar to password hashing)
 const hashToken = (token) => {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -54,6 +59,17 @@ const setEmailVerificationToken = (user) => {
   return verificationToken; // Return unhashed token for email
 };
 
+// Set mobile verification token and expiry
+const setMobileVerificationToken = (user) => {
+  const verificationToken = generateMobileVerificationToken();
+  const hashedToken = hashToken(verificationToken);
+  
+  user.mobileVerificationToken = hashedToken;
+  user.mobileVerificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes for SMS
+  
+  return verificationToken; // Return unhashed token for SMS
+};
+
 // Clear password reset token
 const clearPasswordResetToken = (user) => {
   user.passwordResetToken = null;
@@ -66,15 +82,24 @@ const clearEmailVerificationToken = (user) => {
   user.emailVerificationExpires = null;
 };
 
+// Clear mobile verification token
+const clearMobileVerificationToken = (user) => {
+  user.mobileVerificationToken = null;
+  user.mobileVerificationExpires = null;
+};
+
 module.exports = {
   generateToken,
   generatePasswordResetToken,
   generateEmailVerificationToken,
+  generateMobileVerificationToken,
   hashToken,
   verifyToken,
   isTokenExpired,
   setPasswordResetToken,
   setEmailVerificationToken,
+  setMobileVerificationToken,
   clearPasswordResetToken,
-  clearEmailVerificationToken
+  clearEmailVerificationToken,
+  clearMobileVerificationToken
 }; 

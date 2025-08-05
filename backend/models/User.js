@@ -51,7 +51,7 @@ const userSchema = new mongoose.Schema({
   // For technicians - specialization areas
   specializations: [{
     type: String,
-    enum: ['plumbing', 'electrical', 'carpentry', 'cleaning', 'security', 'elevator', 'general']
+    enum: ['sanitation', 'security', 'water', 'electricity', 'elevator', 'noise', 'parking', 'maintenance', 'cleaning', 'pest_control', 'landscaping', 'fire_safety', 'other']
   }],
   // For committee members - permissions
   permissions: [{
@@ -70,6 +70,18 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  isMobileVerified: {
+    type: Boolean,
+    default: false
+  },
+  mobileVerificationToken: {
+    type: String,
+    default: null
+  },
+  mobileVerificationExpires: {
+    type: Date,
+    default: null
+  },
   passwordResetToken: {
     type: String,
     default: null
@@ -77,6 +89,29 @@ const userSchema = new mongoose.Schema({
   passwordResetExpires: {
     type: Date,
     default: null
+  },
+  // Rating fields for technicians
+  feedbacks: {
+    type: [Number],
+    default: [],
+    validate: {
+      validator: function(feedbacks) {
+        return feedbacks.every(rating => rating >= 1 && rating <= 5 && Number.isInteger(rating));
+      },
+      message: 'All ratings must be integers between 1 and 5'
+    }
+  },
+  rating: {
+    type: Number,
+    default: 0,
+    min: [0, 'Rating cannot be negative'],
+    max: [5, 'Rating cannot exceed 5']
+  },
+  language: {
+    type: String,
+    enum: ['en', 'hi'],
+    default: 'en',
+    required: true
   }
 }, {
   timestamps: true
@@ -126,6 +161,43 @@ userSchema.methods.hasPermission = function(permission) {
 // Method to check if user is committee member or technician
 userSchema.methods.isStaff = function() {
   return this.role === 'committee' || this.role === 'technician';
+};
+
+// Method to update technician rating
+userSchema.methods.updateRating = function(newRating) {
+  if (this.role !== 'technician') {
+    throw new Error('Only technicians can have ratings');
+  }
+  
+  if (newRating < 1 || newRating > 5 || !Number.isInteger(newRating)) {
+    throw new Error('Rating must be an integer between 1 and 5');
+  }
+  
+  // Add the new rating to the feedbacks array
+  this.feedbacks.push(newRating);
+  
+  // Calculate the average rating
+  const totalRating = this.feedbacks.reduce((sum, rating) => sum + rating, 0);
+  this.rating = totalRating / this.feedbacks.length;
+  
+  return this.save();
+};
+
+// Method to get rating summary
+userSchema.methods.getRatingSummary = function() {
+  if (this.role !== 'technician') {
+    return null;
+  }
+  
+  const totalRatings = this.feedbacks.length;
+  const averageRating = this.rating;
+  const ratingPercentage = totalRatings > 0 ? Math.round((averageRating / 5) * 100) : 0;
+  
+  return {
+    averageRating,
+    totalRatings,
+    ratingPercentage
+  };
 };
 
 module.exports = mongoose.model('User', userSchema); 

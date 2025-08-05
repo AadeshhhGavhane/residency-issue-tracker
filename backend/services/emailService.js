@@ -36,7 +36,7 @@ const emailTemplates = {
         <p>Hello ${userName},</p>
         <p>You have requested to reset your password. Click the button below to proceed:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL}/reset-password.html?token=${resetToken}" 
+          <a href="${process.env.FRONTEND_URL}/reset-password?token=${resetToken}" 
              style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
             Reset Password
           </a>
@@ -59,7 +59,7 @@ const emailTemplates = {
         <p>Hello ${userName},</p>
         <p>Thank you for registering! Please verify your email address by clicking the button below:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL}/verify-email.html?token=${verificationToken}" 
+          <a href="${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}" 
              style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
             Verify Email
           </a>
@@ -300,6 +300,7 @@ const sendIssueResolvedNotification = async (email, data) => {
 };
 
 module.exports = {
+  sendEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
   sendPasswordChangedEmail,

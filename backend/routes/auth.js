@@ -15,7 +15,9 @@ const {
   verifyEmail,
   resendVerification,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  sendMobileVerification,
+  verifyMobilePublic
 } = require('../controllers/authController');
 
 const router = express.Router();
@@ -397,6 +399,156 @@ router.post('/reset-password', validatePasswordReset, resetPassword);
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/verify-email', validateEmailVerification, verifyEmail);
+
+/**
+ * @swagger
+ * /api/auth/send-mobile-verification:
+ *   post:
+ *     summary: Send mobile verification SMS
+ *     description: Send SMS verification code to user's phone number
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: User's phone number
+ *                 example: "1234567890"
+ *     responses:
+ *       200:
+ *         description: Verification SMS sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Verification SMS sent successfully"
+ *       400:
+ *         description: Invalid phone number or already verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/send-mobile-verification', protect, sendMobileVerification);
+
+/**
+ * @swagger
+ * /api/auth/verify-mobile-public:
+ *   post:
+ *     summary: Verify mobile number (public)
+ *     description: Verify mobile number using token from WhatsApp link
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Mobile verification token from WhatsApp link
+ *                 example: "bdd3d74e888023ba545cb7fcb17ff1494c1d78657b7160d9dc7bcb7d71bbefcb"
+ *     responses:
+ *       200:
+ *         description: Mobile number verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Mobile number verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         isMobileVerified:
+ *                           type: boolean
+ *       400:
+ *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/verify-mobile-public', verifyMobilePublic);
+
+/**
+ * @swagger
+ * /api/auth/verify-mobile:
+ *   post:
+ *     summary: Verify mobile number (authenticated)
+ *     description: Verify mobile number for authenticated user
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Mobile verification token
+ *     responses:
+ *       200:
+ *         description: Mobile number verified successfully
+ *       400:
+ *         description: Invalid token
+ *       401:
+ *         description: Not authorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/verify-mobile', protect, verifyMobilePublic);
 
 /**
  * @swagger

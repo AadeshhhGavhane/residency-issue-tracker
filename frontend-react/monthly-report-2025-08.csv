@@ -1,0 +1,43 @@
+Monthly Report - August 2025
+Generated At,8/6/2025, 2:29:20 AM
+
+Summary
+Total Issues,10
+Resolved Issues,4
+Pending Issues,0
+In Progress Issues,0
+Resolution Rate,40%
+Total Cost,₹250
+Average Cost,₹250.00
+Average Rating,5.0
+Average Resolution Time,0 days
+
+Category Breakdown
+Category,Count,Percentage
+pest_control,4,40%
+cleaning,2,20%
+fire_safety,2,20%
+sanitation,1,10%
+noise,1,10%
+
+Priority Breakdown
+Priority,Count,Percentage
+high,5,50%
+medium,3,30%
+urgent,2,20%
+
+Location Breakdown
+Location,Count,Percentage
+Unknown,10,100%
+
+Cost by Category
+Category,Total Cost,Issue Count,Average Cost
+pest_control,₹250,1,₹250.00
+
+Top Issues by Cost
+Title,Category,Priority,Cost,Status
+pest control,pest_control,high,₹250,assigned
+
+Daily Trends
+Date,Issue Count
+2025-08-05,10

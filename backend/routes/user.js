@@ -5,7 +5,8 @@ const { validateProfileUpdate } = require('../middleware/validation');
 const {
   getCurrentUser,
   updateProfile,
-  deleteAccount
+  deleteAccount,
+  updateLanguage
 } = require('../controllers/userController');
 
 const router = express.Router();
@@ -159,5 +160,67 @@ router.put('/me', validateProfileUpdate, uploadProfilePicture, handleUploadError
  *               $ref: '#/components/schemas/Error'
  */
 router.delete('/me', deleteAccount);
+
+/**
+ * @swagger
+ * /api/user/language:
+ *   put:
+ *     summary: Update user language preference
+ *     description: Update the current user's preferred language
+ *     tags: [User Management]
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               language:
+ *                 type: string
+ *                 enum: [en, hi]
+ *                 description: User's preferred language
+ *                 example: "hi"
+ *     responses:
+ *       200:
+ *         description: Language preference updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *             type: object
+ *             properties:
+ *               success:
+ *                 type: boolean
+ *                 example: true
+ *               message:
+ *                 type: string
+ *                 example: "Language preference updated successfully"
+ *               data:
+ *                 type: object
+ *                 properties:
+ *                   user:
+ *                     $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Invalid language
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.put('/language', updateLanguage);
 
 module.exports = router; 

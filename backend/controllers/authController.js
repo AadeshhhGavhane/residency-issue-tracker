@@ -3,14 +3,22 @@ const bcrypt = require('bcryptjs');
 const { generateToken, setTokenCookie } = require('../middleware/auth');
 const { cloudinary } = require('../middleware/upload');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../services/emailService');
+const { 
+  sendMobileVerificationWhatsApp,
+  sendIssueNotificationWhatsApp,
+  sendAssignmentAcceptedNotificationWhatsApp,
+  sendAssignmentRejectedNotificationWhatsApp
+} = require('../services/whatsappService');
 const { auditActions } = require('../services/auditService');
 const { 
   setPasswordResetToken, 
   setEmailVerificationToken,
+  setMobileVerificationToken,
   verifyToken, 
-  isTokenExpired, 
+  isTokenExpired,
   clearPasswordResetToken,
-  clearEmailVerificationToken
+  clearEmailVerificationToken,
+  clearMobileVerificationToken
 } = require('../utils/tokenUtils');
 const logger = require('../config/logger');
 
@@ -27,25 +35,35 @@ const register = async (req, res) => {
     // Handle profile picture upload if provided
     if (req.file) {
       try {
-        // Convert buffer to base64 and upload to Cloudinary
-        const b64 = req.file.buffer.toString('base64');
-        const dataURI = `data:${req.file.mimetype};base64,${b64}`;
-        
-        const result = await cloudinary.uploader.upload(dataURI, {
-          folder: 'auth-starter-kit/profiles',
-          transformation: [
-            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
-            { quality: 'auto', fetch_format: 'auto' }
-          ]
-        });
+        // Check file size before upload
+        const fileSizeInMB = req.file.size / (1024 * 1024);
+        if (fileSizeInMB > 2) {
+          logger.warn('Profile picture too large, skipping upload');
+          profilePictureUrl = null;
+        } else {
+          // Convert buffer to base64 and upload to Cloudinary
+          const b64 = req.file.buffer.toString('base64');
+          const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+          
+          const result = await cloudinary.uploader.upload(dataURI, {
+            folder: 'auth-starter-kit/profiles',
+            transformation: [
+              { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+              { quality: 'auto', fetch_format: 'auto' }
+            ],
+            timeout: 30000 // 30 second timeout
+          });
 
-        profilePictureUrl = result.secure_url;
+          profilePictureUrl = result.secure_url;
+        }
       } catch (error) {
-        console.error('Profile picture upload error during registration:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Error uploading profile picture'
-        });
+        logger.error('Profile picture upload error during registration:', error);
+        
+        // Continue registration without profile picture if upload fails
+        logger.warn('Continuing registration without profile picture due to upload failure');
+        profilePictureUrl = null;
+        
+        // Don't return error, just continue without profile picture
       }
     }
 
@@ -84,7 +102,18 @@ const register = async (req, res) => {
     
     // Add technician-specific fields
     if (role === 'technician' && specializations) {
-      userData.specializations = Array.isArray(specializations) ? specializations : [specializations];
+      // Ensure specializations is always an array and filter out any invalid values
+      const validSpecializations = ['sanitation', 'security', 'water', 'electricity', 'elevator', 'noise', 'parking', 'maintenance', 'cleaning', 'pest_control', 'landscaping', 'fire_safety', 'other'];
+      
+      let specsArray = Array.isArray(specializations) ? specializations : [specializations];
+      // Filter out any invalid specializations and ensure they are strings
+      specsArray = specsArray
+        .filter(spec => spec && typeof spec === 'string')
+        .filter(spec => validSpecializations.includes(spec));
+      
+      if (specsArray.length > 0) {
+        userData.specializations = specsArray;
+      }
     }
     
     // Add committee-specific fields
@@ -95,13 +124,20 @@ const register = async (req, res) => {
     // Create user
     const user = await User.create(userData);
 
-    // Generate verification token
-    const verificationToken = setEmailVerificationToken(user);
+    // Generate verification tokens
+    const emailVerificationToken = setEmailVerificationToken(user);
+    let mobileVerificationToken = null;
+    
+    // Generate mobile verification token if phone number is provided
+    if (phoneNumber) {
+      mobileVerificationToken = setMobileVerificationToken(user);
+    }
+    
     await user.save();
 
     // Send verification email
     try {
-      await sendVerificationEmail(user.email, verificationToken, user.name);
+      await sendVerificationEmail(user.email, emailVerificationToken, user.name);
       await auditActions.logVerificationEmailSent(user._id, user.email, req);
     } catch (emailError) {
       logger.error('Failed to send verification email', {
@@ -109,6 +145,70 @@ const register = async (req, res) => {
         error: emailError.message
       });
       // Continue with registration even if email fails
+    }
+
+    // Send WhatsApp verification if phone number is provided
+    if (phoneNumber && mobileVerificationToken) {
+      try {
+        const whatsappResult = await sendMobileVerificationWhatsApp(phoneNumber, mobileVerificationToken, user.name);
+        
+        if (!whatsappResult.success) {
+          // Check if it's a phone number specific trial limit
+          if (whatsappResult.isPhoneNumberLimit) {
+            logger.warn('Phone number has reached WhatsApp trial limit during registration', {
+              phoneNumber: phoneNumber,
+              userId: user._id
+            });
+            
+            // Continue with registration but inform user about the limit
+            res.status(201).json({
+              success: true,
+              message: 'User registered successfully. Please check your email to verify your account. WhatsApp verification is not available for this phone number due to trial limits.',
+              data: {
+                user: user.toJSON()
+              }
+            });
+            return;
+          }
+          
+          // Check if it's a general trial limit error
+          if (whatsappResult.isTrialLimit) {
+            logger.warn('WhatsApp trial limit exceeded during registration', {
+              phoneNumber: phoneNumber,
+              userId: user._id
+            });
+            
+            // Continue with registration but log the issue
+            // Don't clear the token, let user try again later
+          } else {
+            // Clear token if WhatsApp fails for other reasons
+            clearMobileVerificationToken(user);
+            await user.save();
+            
+            logger.error('Failed to send WhatsApp verification', {
+              phoneNumber: phoneNumber,
+              error: whatsappResult.error
+            });
+          }
+        } else {
+          // Log mobile verification request
+          await auditActions.logMobileVerificationRequest(user._id, phoneNumber, req);
+          logger.info('WhatsApp verification sent during registration', {
+            userId: user._id,
+            phoneNumber: phoneNumber
+          });
+        }
+      } catch (whatsappError) {
+        // Clear token if WhatsApp fails
+        clearMobileVerificationToken(user);
+        await user.save();
+        
+        logger.error('WhatsApp verification error', {
+          phoneNumber: phoneNumber,
+          error: whatsappError.message
+        });
+        // Continue with registration even if WhatsApp fails
+      }
     }
 
     // Log user registration
@@ -124,7 +224,9 @@ const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully. Please check your email to verify your account.',
+      message: phoneNumber 
+        ? 'User registered successfully. Please check your email to verify your account. WhatsApp verification may be temporarily unavailable due to service limits.'
+        : 'User registered successfully. Please check your email to verify your account.',
       data: {
         user: user.toJSON()
       }
@@ -178,6 +280,15 @@ const login = async (req, res) => {
         success: false,
         message: 'Please verify your email address before logging in. Check your email for a verification link.',
         needsVerification: true
+      });
+    }
+
+    // Check if mobile is verified (required if phone number exists)
+    if (user.phoneNumber && !user.isMobileVerified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please verify your mobile number before logging in. Check your WhatsApp for a verification link.',
+        needsMobileVerification: true
       });
     }
 
@@ -531,6 +642,200 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// @desc    Send mobile verification SMS
+// @route   POST /api/auth/send-mobile-verification
+// @access  Private
+const sendMobileVerification = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 10-digit phone number'
+      });
+    }
+
+    // Check if user already has this phone number and it's verified
+    if (req.user.phoneNumber === phoneNumber && req.user.isMobileVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'This phone number is already verified'
+      });
+    }
+
+    // Update user's phone number if different
+    if (req.user.phoneNumber !== phoneNumber) {
+      req.user.phoneNumber = phoneNumber;
+      req.user.isMobileVerified = false;
+    }
+
+    // Generate and set verification token
+    const verificationToken = setMobileVerificationToken(req.user);
+    await req.user.save();
+
+    // Send WhatsApp verification message
+    try {
+      const whatsappResult = await sendMobileVerificationWhatsApp(phoneNumber, verificationToken, req.user.name);
+      
+      if (!whatsappResult.success) {
+        // Check if it's a phone number specific trial limit
+        if (whatsappResult.isPhoneNumberLimit) {
+          logger.warn('Phone number has reached WhatsApp trial limit', {
+            phoneNumber: phoneNumber,
+            userId: req.user._id
+          });
+
+          return res.status(503).json({
+            success: false,
+            message: 'WhatsApp service is temporarily unavailable for this phone number due to trial limits. Please try again later or contact support.'
+          });
+        }
+        
+        // Check if it's a general trial limit error
+        if (whatsappResult.isTrialLimit) {
+          logger.warn('WhatsApp trial limit exceeded', {
+            phoneNumber: phoneNumber,
+            userId: req.user._id
+          });
+
+          return res.status(503).json({
+            success: false,
+            message: 'WhatsApp service is temporarily unavailable due to service limits. Please try again later or contact support.'
+          });
+        }
+        
+        // Clear token if WhatsApp fails for other reasons
+        clearMobileVerificationToken(req.user);
+        await req.user.save();
+        
+        logger.error('Failed to send WhatsApp verification', {
+          phoneNumber: phoneNumber,
+          error: whatsappResult.error
+        });
+
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send verification message. Please try again.'
+        });
+      }
+
+      // Log mobile verification request
+      await auditActions.logMobileVerificationRequest(req.user._id, phoneNumber, req);
+
+      res.status(200).json({
+        success: true,
+        message: 'Verification WhatsApp message sent successfully'
+      });
+    } catch (whatsappError) {
+      // Clear token if WhatsApp fails
+      clearMobileVerificationToken(req.user);
+      await req.user.save();
+      
+      logger.error('WhatsApp verification error', {
+        phoneNumber: phoneNumber,
+        error: whatsappError.message
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification message. Please try again.'
+      });
+    }
+  } catch (error) {
+    console.error('Send mobile verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// @desc    Verify mobile number (public endpoint)
+// @route   POST /api/auth/verify-mobile-public
+// @access  Public
+const verifyMobilePublic = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token is required'
+      });
+    }
+
+    // Find user with valid verification token
+    const user = await User.findOne({ 
+      mobileVerificationToken: { $exists: true },
+      mobileVerificationExpires: { $gt: new Date() }
+    });
+    
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      });
+    }
+
+    // Verify token
+    if (!verifyToken(token, user.mobileVerificationToken)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification token'
+      });
+    }
+
+    // Check if token is expired
+    if (isTokenExpired(user.mobileVerificationExpires)) {
+      clearMobileVerificationToken(user);
+      await user.save();
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token has expired'
+      });
+    }
+
+    // Mark mobile as verified
+    user.isMobileVerified = true;
+    clearMobileVerificationToken(user);
+    await user.save();
+
+    // Log mobile verification
+    await auditActions.logMobileVerification(user._id, user.phoneNumber, req);
+
+    res.status(200).json({
+      success: true,
+      message: 'Mobile number verified successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          isMobileVerified: user.isMobileVerified
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Verify mobile public error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -539,5 +844,7 @@ module.exports = {
   verifyEmail,
   resendVerification,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  sendMobileVerification,
+  verifyMobilePublic
 }; 

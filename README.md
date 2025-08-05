@@ -11,6 +11,7 @@ A **comprehensive, fullstack issue tracking system** built for residential socie
 - ✅ **Real-time Notifications** via email
 - ✅ **Media Support** (images and videos)
 - ✅ **Location Tracking** with coordinates and address
+- ✅ **AI-Powered Priority Detection** (automatically determines priority based on content)
 - ✅ **Priority Levels** (Low, Medium, High, Critical)
 - ✅ **Custom Categories** with predefined options
 

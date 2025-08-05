@@ -173,8 +173,55 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+/**
+ * Update user language preference
+ * @route PUT /api/user/language
+ * @access Private
+ */
+const updateLanguage = async (req, res) => {
+  try {
+    const { language } = req.body;
+
+    if (!language || !['en', 'hi'].includes(language)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid language. Must be "en" or "hi"'
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { language },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    logger.info(`User language updated: ${req.user.id} -> ${language}`);
+
+    res.json({
+      success: true,
+      message: 'Language preference updated successfully',
+      data: updatedUser
+    });
+
+  } catch (error) {
+    logger.error('Update language error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating language preference'
+    });
+  }
+};
+
 module.exports = {
   getCurrentUser,
   updateProfile,
-  deleteAccount
+  deleteAccount,
+  updateLanguage
 }; 

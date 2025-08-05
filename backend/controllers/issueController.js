@@ -5,6 +5,12 @@ const cloudinary = require('cloudinary').v2;
 const logger = require('../config/logger');
 const { AuditService } = require('../services/auditService');
 const emailService = require('../services/emailService');
+const aiService = require('../services/aiService');
+const GeocodingService = require('../services/geocodingService');
+const { 
+  sendIssueNotificationWhatsApp,
+  sendAssignmentNotificationWhatsApp
+} = require('../services/whatsappService');
 
 /**
  * Create a new issue
@@ -18,7 +24,6 @@ const createIssue = async (req, res) => {
       description,
       category,
       customCategory,
-      priority,
       latitude,
       longitude,
       blockNumber,
@@ -29,10 +34,10 @@ const createIssue = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!title || !description || !category || !priority) {
+    if (!title || !description || !category) {
       return res.status(400).json({
         success: false,
-        message: 'Title, description, category, and priority are required'
+        message: 'Title, description, and category are required'
       });
     }
 
@@ -60,7 +65,8 @@ const createIssue = async (req, res) => {
           
           const result = await cloudinary.uploader.upload(dataURI, {
             folder: 'issues',
-            resource_type: 'auto'
+            resource_type: 'auto',
+            timeout: 30000 // 30 second timeout
           });
 
           const mediaItem = {
@@ -76,21 +82,22 @@ const createIssue = async (req, res) => {
           }
         } catch (uploadError) {
           logger.error('File upload error:', uploadError);
-          return res.status(500).json({
-            success: false,
-            message: 'Error uploading media files'
-          });
+          // Continue without this file instead of failing the entire request
+          logger.warn(`Skipping file ${file.originalname} due to upload failure`);
         }
       }
     }
 
-    // Create issue
+    // Get readable address from coordinates
+    const readableAddress = await GeocodingService.reverseGeocode(parseFloat(latitude), parseFloat(longitude));
+    
+    // Create issue with default priority (will be updated by AI)
     const issue = new Issue({
       title,
       description,
       category,
       customCategory: customCategory || null,
-      priority,
+      priority: 'medium', // Default priority, will be updated by AI
       location: {
         type: 'Point',
         coordinates: [parseFloat(longitude), parseFloat(latitude)]
@@ -99,7 +106,8 @@ const createIssue = async (req, res) => {
         blockNumber: blockNumber || null,
         apartmentNumber: apartmentNumber || null,
         floorNumber: floorNumber || null,
-        area: area || null
+        area: area || null,
+        fullAddress: readableAddress
       },
       images,
       videos,
@@ -109,11 +117,24 @@ const createIssue = async (req, res) => {
 
     await issue.save();
 
+    // Detect priority using AI
+    try {
+      const aiPriority = await aiService.detectPriority(title, description, category);
+      issue.priority = aiPriority;
+      await issue.save();
+      
+      logger.info(`AI priority detection completed for issue ${issue._id}: ${aiPriority}`);
+    } catch (aiError) {
+      logger.error('AI priority detection failed, keeping default priority:', aiError);
+      // Keep the default priority if AI detection fails
+    }
+
     // Log audit event
     await AuditService.logAction(req.user._id, 'ISSUE_CREATED', {
       issueId: issue._id,
       category: issue.category,
       priority: issue.priority,
+      aiDetermined: true,
       hasMedia: images.length > 0 || videos.length > 0
     }, req);
 
@@ -125,8 +146,21 @@ const createIssue = async (req, res) => {
         title: issue.title,
         category: issue.category,
         priority: issue.priority,
+        aiDetermined: true,
         reportedBy: req.user.name
       });
+      
+      // Send WhatsApp notification to committee members with verified mobile numbers
+      if (member.phoneNumber && member.isMobileVerified) {
+        await sendIssueNotificationWhatsApp(member.phoneNumber, {
+          issueId: issue._id,
+          title: issue.title,
+          category: issue.category,
+          priority: issue.priority,
+          aiDetermined: true,
+          reportedBy: req.user.name
+        });
+      }
     }
 
     logger.info(`Issue created: ${issue._id} by user: ${req.user._id}`);
@@ -192,14 +226,28 @@ const getIssues = async (req, res) => {
       .skip(skip)
       .limit(limitNum);
 
+    // Add readable addresses to issues
+    const issuesWithAddresses = await Promise.all(issues.map(async (issue) => {
+      const issueObj = issue.toObject();
+      
+      // If issue has coordinates, get readable address
+      if (issueObj.location && issueObj.location.coordinates) {
+        const [lng, lat] = issueObj.location.coordinates;
+        const readableAddress = await GeocodingService.reverseGeocode(lat, lng);
+        issueObj.readableAddress = readableAddress;
+      }
+      
+      return issueObj;
+    }));
+
     const total = await Issue.countDocuments(filter);
 
-    logger.info(`Issues retrieved: ${issues.length} by user: ${req.user._id}`);
+    logger.info(`Issues retrieved: ${issuesWithAddresses.length} by user: ${req.user._id}`);
 
     res.json({
       success: true,
       data: {
-        issues,
+        issues: issuesWithAddresses,
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -259,14 +307,28 @@ const getAllIssues = async (req, res) => {
       .skip(skip)
       .limit(limitNum);
 
+    // Add readable addresses to issues
+    const issuesWithAddresses = await Promise.all(issues.map(async (issue) => {
+      const issueObj = issue.toObject();
+      
+      // If issue has coordinates, get readable address
+      if (issueObj.location && issueObj.location.coordinates) {
+        const [lng, lat] = issueObj.location.coordinates;
+        const readableAddress = await GeocodingService.reverseGeocode(lat, lng);
+        issueObj.readableAddress = readableAddress;
+      }
+      
+      return issueObj;
+    }));
+
     const total = await Issue.countDocuments(filter);
 
-    logger.info(`All issues retrieved: ${issues.length} by admin user: ${req.user._id}`);
+    logger.info(`All issues retrieved: ${issuesWithAddresses.length} by admin user: ${req.user._id}`);
 
     res.json({
       success: true,
       data: {
-        issues,
+        issues: issuesWithAddresses,
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -309,12 +371,20 @@ const getIssue = async (req, res) => {
       .populate('assignedBy', 'name email')
       .sort({ createdAt: -1 });
 
+    // Add readable address to issue
+    const issueObj = issue.toObject();
+    if (issueObj.location && issueObj.location.coordinates) {
+      const [lng, lat] = issueObj.location.coordinates;
+      const readableAddress = await GeocodingService.reverseGeocode(lat, lng);
+      issueObj.readableAddress = readableAddress;
+    }
+
     logger.info(`Issue retrieved: ${issue._id} by user: ${req.user._id}`);
 
     res.json({
       success: true,
       data: {
-        issue,
+        issue: issueObj,
         assignments
       }
     });
@@ -451,13 +521,27 @@ const deleteIssue = async (req, res) => {
  */
 const assignIssue = async (req, res) => {
   try {
-    const { technicianId, estimatedCompletionTime, assignmentNotes } = req.body;
+    const { technicianId, estimatedCompletionTime, assignmentNotes, cost } = req.body;
+
+    logger.info('Assign issue request body:', req.body);
+    logger.info('Cost value received:', cost, 'Type:', typeof cost);
 
     if (!technicianId) {
       return res.status(400).json({
         success: false,
         message: 'Technician ID is required'
       });
+    }
+
+    // Validate cost if provided
+    if (cost !== undefined && cost !== null && cost !== '') {
+      const costNum = Number(cost);
+      if (isNaN(costNum) || costNum < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cost must be a non-negative number'
+        });
+      }
     }
 
     const issue = await Issue.findById(req.params.issueId);
@@ -487,15 +571,51 @@ const assignIssue = async (req, res) => {
 
     await assignment.save();
 
-    // Update issue
-    issue.assignedTo = technicianId;
-    issue.assignedBy = req.user._id;
-    issue.status = 'assigned';
-    issue.assignedAt = new Date();
+    // Prepare update data
+    const updateData = {
+      assignedTo: technicianId,
+      assignedBy: req.user._id,
+      status: 'assigned',
+      assignedAt: new Date()
+    };
+    
     if (estimatedCompletionTime) {
-      issue.estimatedCompletionTime = estimatedCompletionTime;
+      updateData.estimatedCompletionTime = estimatedCompletionTime;
     }
-    await issue.save();
+    
+    logger.info('Cost processing - cost value:', cost, 'type:', typeof cost);
+    
+    if (cost !== undefined && cost !== null && cost !== '') {
+      const costNum = Number(cost);
+      if (!isNaN(costNum)) {
+        updateData.cost = costNum;
+        logger.info(`Setting cost for issue ${issue._id}: ${costNum}`);
+      } else {
+        logger.info('Cost is NaN, not setting cost');
+      }
+    } else {
+      logger.info('Cost is undefined/null/empty, not setting cost');
+      // Explicitly set cost to null to prevent default value
+      updateData.cost = null;
+    }
+    
+    // Update issue using findByIdAndUpdate
+    logger.info('Update data being sent to database:', updateData);
+    
+    const updatedIssue = await Issue.findByIdAndUpdate(
+      issue._id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedIssue) {
+      throw new Error('Failed to update issue');
+    }
+    
+    logger.info('Updated issue cost:', updatedIssue.cost);
+    
+    // Update the issue object for the response
+    Object.assign(issue, updatedIssue);
 
     // Log audit event
     await AuditService.logAction(req.user._id, 'ISSUE_ASSIGNED', {
@@ -513,6 +633,18 @@ const assignIssue = async (req, res) => {
       assignedBy: req.user.name,
       estimatedTime: estimatedCompletionTime
     });
+    
+    // Send WhatsApp notification to technician
+    if (technician.phoneNumber && technician.isMobileVerified) {
+      await sendAssignmentNotificationWhatsApp(technician.phoneNumber, {
+        issueId: issue._id,
+        title: issue.title,
+        category: issue.category,
+        priority: issue.priority,
+        assignedBy: req.user.name,
+        estimatedTime: estimatedCompletionTime
+      });
+    }
 
     logger.info(`Issue assigned: ${issue._id} to technician: ${technicianId} by user: ${req.user._id}`);
 
@@ -592,7 +724,8 @@ const updateIssueStatus = async (req, res) => {
         await emailService.sendIssueResolvedNotification(reporter.email, {
           issueId: issue._id,
           title: issue.title,
-          status: status
+          status: status,
+          canProvideFeedback: true
         });
       }
     }
@@ -710,6 +843,35 @@ const getAnalytics = async (req, res) => {
       { $sort: { count: -1 } }
     ]);
 
+    // Cost analytics
+    const costStats = await Issue.aggregate([
+      { $match: { ...filter, cost: { $exists: true, $ne: null, $gt: 0 } } },
+      {
+        $group: {
+          _id: null,
+          totalCost: { $sum: '$cost' },
+          averageCost: { $avg: '$cost' },
+          minCost: { $min: '$cost' },
+          maxCost: { $max: '$cost' },
+          costCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Cost by category
+    const costByCategory = await Issue.aggregate([
+      { $match: { ...filter, cost: { $exists: true, $ne: null, $gt: 0 } } },
+      {
+        $group: {
+          _id: '$category',
+          totalCost: { $sum: '$cost' },
+          averageCost: { $avg: '$cost' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { totalCost: -1 } }
+    ]);
+
     // Average resolution time
     const resolvedIssuesWithTime = await Issue.find({
       ...filter,
@@ -759,7 +921,15 @@ const getAnalytics = async (req, res) => {
         averageResolutionTime,
         categoryStats,
         priorityStats,
-        statusStats
+        statusStats,
+        costStats: costStats[0] || {
+          totalCost: 0,
+          averageCost: 0,
+          minCost: 0,
+          maxCost: 0,
+          costCount: 0
+        },
+        costByCategory
       }
     });
 

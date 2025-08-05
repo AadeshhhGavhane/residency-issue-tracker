@@ -39,7 +39,7 @@ const issueSchema = new mongoose.Schema({
   // Status tracking
   status: {
     type: String,
-    enum: ['new', 'assigned', 'in_progress', 'resolved', 'closed'],
+    enum: ['new', 'assigned', 'in_progress', 'resolved'],
     default: 'new',
     required: true
   },
@@ -75,6 +75,11 @@ const issueSchema = new mongoose.Schema({
       type: String,
       trim: true,
       maxlength: [100, 'Area description cannot be more than 100 characters']
+    },
+    fullAddress: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Full address cannot be more than 500 characters']
     }
   },
   // Media attachments
@@ -135,10 +140,6 @@ const issueSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
-  closedAt: {
-    type: Date,
-    default: null
-  },
   // Additional metadata
   estimatedCompletionTime: {
     type: Number, // in hours
@@ -150,8 +151,7 @@ const issueSchema = new mongoose.Schema({
   },
   cost: {
     type: Number,
-    min: [0, 'Cost cannot be negative'],
-    default: 0
+    min: [0, 'Cost cannot be negative']
   },
   // Internal notes
   internalNotes: {
@@ -173,7 +173,22 @@ const issueSchema = new mongoose.Schema({
   relatedIssues: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Issue'
-  }]
+  }],
+  // Rating fields for completed issues
+  rating: {
+    type: Number,
+    min: [1, 'Rating must be at least 1'],
+    max: [5, 'Rating cannot exceed 5']
+  },
+  ratingComment: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Rating comment cannot be more than 500 characters']
+  },
+  ratedAt: {
+    type: Date,
+    default: null
+  }
 }, {
   timestamps: true
 });
@@ -205,9 +220,6 @@ issueSchema.methods.updateStatus = function(newStatus) {
     case 'resolved':
       this.resolvedAt = new Date();
       break;
-    case 'closed':
-      this.closedAt = new Date();
-      break;
   }
   
   return this.save();
@@ -221,7 +233,7 @@ issueSchema.methods.getResolutionTime = function() {
 
 // Method to check if issue is overdue
 issueSchema.methods.isOverdue = function() {
-  if (this.status === 'resolved' || this.status === 'closed') return false;
+  if (this.status === 'resolved') return false;
   if (!this.estimatedCompletionTime || !this.assignedAt) return false;
   
   const now = new Date();

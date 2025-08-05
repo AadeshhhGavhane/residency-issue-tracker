@@ -29,7 +29,9 @@ class AuditService {
     'ASSIGNMENT_COMPLETED',
     'ASSIGNMENT_STARTED',
     'ASSIGNMENT_UPDATED',
-    'ASSIGNMENT_TIME_UPDATED'
+    'ASSIGNMENT_TIME_UPDATED',
+    // Feedback events
+    'FEEDBACK_SUBMITTED'
   ];
 
   // Log compliance-critical user action
@@ -312,6 +314,12 @@ const auditActions = {
   
   logEmailVerification: (userId, email, req) => 
     AuditService.logAction(userId, 'EMAIL_VERIFICATION', { email }, req),
+  
+  logMobileVerificationRequest: (userId, phoneNumber, req) => 
+    AuditService.logAction(userId, 'MOBILE_VERIFICATION_REQUEST', { phoneNumber }, req),
+  
+  logMobileVerification: (userId, phoneNumber, req) => 
+    AuditService.logAction(userId, 'MOBILE_VERIFICATION', { phoneNumber }, req),
   
   // Security events (compliance required)
   logLoginFailed: (email, req, error = null) => 
