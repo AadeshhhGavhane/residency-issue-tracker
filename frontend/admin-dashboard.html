@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Residential Society</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-home me-2"></i>Residential Society
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="report-issue.html">Report Issue</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="my-issues.html">My Issues</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="admin-dashboard.html">Admin Dashboard</a>
+                    </li>
+                    <li class="nav-item" id="technicianLink" style="display: none;">
+                        <a class="nav-link" href="technician-dashboard.html">My Assignments</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <img id="userProfilePic" src="https://via.placeholder.com/32x32" alt="Profile" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                            <span id="userName">User</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.html">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="auth.logout()">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="fas fa-chart-line me-2"></i>Admin Dashboard</h2>
+                <p class="text-muted">Manage issues, assignments, and view community analytics</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-outline-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="totalIssues">-</h4>
+                                <p class="mb-0">Total Issues</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="pendingIssues">-</h4>
+                                <p class="mb-0">Pending Issues</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-clock fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="resolvedIssues">-</h4>
+                                <p class="mb-0">Resolved Issues</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="activeTechnicians">-</h4>
+                                <p class="mb-0">Active Technicians</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-users fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>Issue Categories
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="commonIssues">
+                            <p class="text-muted">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Issue Status Distribution
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="statusDistribution">
+                            <p class="text-muted">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Issues and Assignments -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Recent Issues
+                        </h5>
+                        <div>
+                            <select class="form-select form-select-sm" id="issueFilter" style="width: auto;">
+                                <option value="">All Issues</option>
+                                <option value="new">New</option>
+                                <option value="assigned">Assigned</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="resolved">Resolved</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentIssuesList">
+                            <p class="text-muted">Loading issues...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-cog me-2"></i>Available Technicians
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="techniciansList">
+                            <p class="text-muted">Loading technicians...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Performance Analytics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Resolution Time (Average)</h6>
+                                <p class="h3 text-primary" id="avgResolutionTime">-</p>
+                                <small class="text-muted">Hours from assignment to resolution</small>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Resolution Rate</h6>
+                                <p class="h3 text-success" id="resolutionRate">-</p>
+                                <small class="text-muted">Percentage of issues resolved</small>
+                            </div>
+                        </div>
+                        
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Issue Details Modal -->
+    <div class="modal fade" id="issueDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Issue Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="issueDetailsContent">
+                    <!-- Issue details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="assignIssueBtn">Assign Issue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assign Issue Modal -->
+    <div class="modal fade" id="assignIssueModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus me-2"></i>Assign Issue
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="assignIssueForm">
+                        <div class="mb-3">
+                            <label for="technicianSelect" class="form-label">Select Technician</label>
+                            <select class="form-select" id="technicianSelect" required>
+                                <option value="">Choose a technician...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="estimatedTime" class="form-label">Estimated Completion Time (hours)</label>
+                            <input type="number" class="form-control" id="estimatedTime" min="1" max="168" placeholder="e.g., 4">
+                        </div>
+                        <div class="mb-3">
+                            <label for="assignmentNotes" class="form-label">Assignment Notes</label>
+                            <textarea class="form-control" id="assignmentNotes" rows="3" placeholder="Any special instructions or notes..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmAssignBtn">Assign Issue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/issues.js"></script>
+    <script>
+        let currentIssueId = null;
+        let technicians = [];
+        let categoryChart = null;
+        let statusChart = null;
+
+        // Check authentication and role access
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await auth.checkAuth();
+                
+                // Check if user has admin/committee access
+                if (!auth.currentUser || (auth.currentUser.role !== 'committee' && auth.currentUser.role !== 'admin')) {
+                    alert('Access denied. Admin/Committee access required.');
+                    window.location.href = 'index.html';
+                    return;
+                }
+                
+                // Wait for modules to be fully loaded
+                let retryCount = 0;
+                const maxRetries = 10;
+                
+                while (retryCount < maxRetries) {
+                    if (typeof issues !== 'undefined' && issues.getIssues && typeof auth !== 'undefined' && auth.currentUser) {
+                        console.log('All modules loaded successfully');
+                        break;
+                    }
+                    console.log(`Waiting for modules to load... (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    retryCount++;
+                }
+                
+                if (retryCount >= maxRetries) {
+                    console.warn('Some modules not loaded after retries, proceeding anyway');
+                }
+                
+                // Update user display
+                updateUserDisplay();
+                
+                // Load dashboard data
+                await loadDashboardData();
+            } catch (error) {
+                console.error('Admin dashboard initialization error:', error);
+                alert('Error initializing admin dashboard. Please try again.');
+                window.location.href = 'index.html';
+            }
+        });
+
+        function updateUserDisplay() {
+            if (auth.currentUser) {
+                // Update all user name displays
+                const nameElements = document.querySelectorAll('#userName, #userNameDisplay');
+                nameElements.forEach(el => el.textContent = auth.currentUser.name);
+
+                // Update profile picture
+                const profilePicElements = document.querySelectorAll('#userProfilePic');
+                if (auth.currentUser.profilePicture) {
+                    profilePicElements.forEach(el => {
+                        el.src = auth.currentUser.profilePicture;
+                        el.style.display = 'block';
+                    });
+                } else {
+                    profilePicElements.forEach(el => {
+                        el.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QzcyODAiLz4KPHBhdGggZD0iTTE2IDhDMTguMjA5MSA4IDIwIDEwLjc5MDkgMjAgMTNDMjAgMTUuMjA5MSAxOC4yMDkxIDE3IDE2IDE3QzEzLjc5MDkgMTcgMTIgMTUuMjA5MSAxMiAxM0MxMiAxMC43OTA5IDEzLjc5MDkgOCAxNiA4WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTI0IDI0QzI0IDIwLjY4NjMgMjAuNDE0MiAxOCAxNiAxOEMxMS41ODU4IDE4IDggMjAuNjg2MyA4IDI0VjI2QzggMjYuNTUyMyA4LjQ0NzcyIDI3IDkgMjdIMjNDMjMuNTUyMyAyNyAyNCAyNi41NTIzIDI0IDI2VjI0WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+                        el.style.display = 'block';
+                    });
+                }
+            }
+        }
+
+        function setupEventListeners() {
+            // Issue filter
+            document.getElementById('issueFilter').addEventListener('change', function() {
+                loadRecentIssues();
+            });
+
+            // Assign issue button
+            document.getElementById('confirmAssignBtn').addEventListener('click', assignIssue);
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Prevent multiple simultaneous calls
+                if (window.isLoadingData) {
+                    console.log('Data loading already in progress, skipping...');
+                    return;
+                }
+                
+                window.isLoadingData = true;
+                
+                // Load data in parallel
+                await Promise.all([
+                    loadAnalytics(),
+                    loadRecentIssues(),
+                    loadTechnicians()
+                ]);
+                
+            } catch (error) {
+                console.error('Load dashboard data error:', error);
+            } finally {
+                window.isLoadingData = false;
+            }
+        }
+
+        async function loadAnalytics() {
+            try {
+                // Check if issues module is available
+                if (typeof issues === 'undefined' || !issues.getAnalytics) {
+                    throw new Error('Issues module not loaded');
+                }
+
+                const response = await issues.getAnalytics({ period: 'month' });
+                const { data } = response;
+
+                // Update quick stats
+                document.getElementById('totalIssues').textContent = data.totalIssues || 0;
+                document.getElementById('pendingIssues').textContent = data.pendingIssues || 0;
+                document.getElementById('resolvedIssues').textContent = data.resolvedIssues || 0;
+                document.getElementById('activeTechnicians').textContent = technicians ? technicians.length : 0;
+
+                // Update charts
+                updateIssueCategories(data.categoryStats || []);
+                updateStatusDistribution(data.statusStats || []);
+
+                // Update performance metrics
+                document.getElementById('resolutionRate').textContent = data.resolutionRate ? 
+                    `${Math.round(data.resolutionRate)}%` : 'N/A';
+                document.getElementById('avgResolutionTime').textContent = data.averageResolutionTime ? 
+                    `${data.averageResolutionTime.toFixed(1)} hours` : 'N/A';
+
+            } catch (error) {
+                console.error('Load analytics error:', error);
+                // Show error state
+                document.getElementById('totalIssues').textContent = '-';
+                document.getElementById('pendingIssues').textContent = '-';
+                document.getElementById('resolvedIssues').textContent = '-';
+                document.getElementById('activeTechnicians').textContent = '-';
+                document.getElementById('resolutionRate').textContent = 'Error';
+                document.getElementById('avgResolutionTime').textContent = 'Error';
+            }
+        }
+
+        function createCategoryChart(categoryStats) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            if (categoryChart) {
+                categoryChart.destroy();
+            }
+
+            categoryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categoryStats.map(item => issues.getCategoryDisplayName(item._id)),
+                    datasets: [{
+                        data: categoryStats.map(item => item.count),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
+                            '#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function createStatusChart(statusStats) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (statusChart) {
+                statusChart.destroy();
+            }
+
+            const statusColors = {
+                'new': '#6c757d',
+                'assigned': '#17a2b8',
+                'in_progress': '#ffc107',
+                'resolved': '#28a745',
+                'closed': '#343a40'
+            };
+
+            statusChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: statusStats.map(item => item._id.replace('_', ' ').toUpperCase()),
+                    datasets: [{
+                        label: 'Issues',
+                        data: statusStats.map(item => item.count),
+                        backgroundColor: statusStats.map(item => statusColors[item._id] || '#6c757d'),
+                        borderColor: statusStats.map(item => statusColors[item._id] || '#6c757d'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStatusDistribution(statusStats) {
+            const container = document.getElementById('statusDistribution');
+            
+            if (!container) {
+                console.error('statusDistribution container not found');
+                return;
+            }
+            
+            if (statusStats.length === 0) {
+                container.innerHTML = '<p class="text-muted">No data available</p>';
+                return;
+            }
+
+            // Simple text-only display to prevent chart issues
+            const statusHtml = statusStats.map((item, index) => `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>${item._id.replace('_', ' ').toUpperCase()}</span>
+                    <span class="badge bg-primary">${item.count}</span>
+                </div>
+            `).join('');
+
+            container.innerHTML = statusHtml;
+        }
+
+        async function loadRecentIssues() {
+            try {
+                // Check if issues module is available
+                if (typeof issues === 'undefined' || !issues.getIssues) {
+                    throw new Error('Issues module not loaded');
+                }
+
+                const response = await issues.getIssues({ limit: 10 });
+                const { issues: issuesList } = response.data;
+
+                const container = document.getElementById('recentIssuesList');
+                
+                if (issuesList.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No issues found</p>';
+                    return;
+                }
+
+                const issuesHtml = issuesList.map(issue => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <h6 class="mb-1">${issue.title}</h6>
+                            <small class="text-muted">${issues.getCategoryDisplayName(issue.category)} • ${issues.formatDate(issue.createdAt)}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge ${issues.getStatusBadgeClass(issue.status)} me-2">${issue.status.replace('_', ' ').toUpperCase()}</span>
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewIssueDetails('${issue._id}')">View</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = issuesHtml;
+
+            } catch (error) {
+                console.error('Load recent issues error:', error);
+                document.getElementById('recentIssuesList').innerHTML = '<p class="text-muted">Error loading issues</p>';
+            }
+        }
+
+        async function loadTechnicians() {
+            try {
+                const response = await issues.getTechnicians();
+                technicians = response.data.technicians;
+
+                const container = document.getElementById('techniciansList');
+                const selectContainer = document.getElementById('technicianSelect');
+                
+                if (technicians.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No technicians available</p>';
+                    return;
+                }
+
+                const techniciansHtml = technicians.map(tech => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <h6 class="mb-1">${tech.name}</h6>
+                            <small class="text-muted">${tech.specializations ? tech.specializations.join(', ') : 'General'}</small>
+                        </div>
+                        <span class="badge bg-success">Available</span>
+                    </div>
+                `).join('');
+
+                container.innerHTML = techniciansHtml;
+
+                // Update select options
+                selectContainer.innerHTML = '<option value="">Choose a technician...</option>' +
+                    technicians.map(tech => `<option value="${tech._id}">${tech.name} (${tech.specializations ? tech.specializations.join(', ') : 'General'})</option>`).join('');
+
+            } catch (error) {
+                console.error('Load technicians error:', error);
+                document.getElementById('techniciansList').innerHTML = '<p class="text-muted">Error loading technicians</p>';
+            }
+        }
+
+        function updateIssueCategories(categoryStats) {
+            const container = document.getElementById('commonIssues');
+            
+            if (!container) {
+                console.error('commonIssues container not found');
+                return;
+            }
+            
+            if (categoryStats.length === 0) {
+                container.innerHTML = '<p class="text-muted">No data available</p>';
+                return;
+            }
+
+            const issuesHtml = categoryStats.map((item, index) => `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>${index + 1}. ${issues.getCategoryDisplayName(item._id)}</span>
+                    <span class="badge bg-primary">${item.count}</span>
+                </div>
+            `).join('');
+
+            container.innerHTML = issuesHtml;
+        }
+
+        function updateMostCommonIssues(categoryStats) {
+            const container = document.getElementById('analyticsCommonIssues');
+            
+            if (!container) {
+                console.error('analyticsCommonIssues container not found');
+                return;
+            }
+            
+            // This will be populated with recent issues data
+            container.innerHTML = '<p class="text-muted">Recent issues will be loaded separately</p>';
+        }
+
+        async function viewIssueDetails(issueId) {
+            try {
+                const response = await issues.getIssue(issueId);
+                const { issue, assignments } = response.data;
+
+                const modal = new bootstrap.Modal(document.getElementById('issueDetailsModal'));
+                const content = document.getElementById('issueDetailsContent');
+
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Issue Information</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>Title:</strong></td><td>${issue.title}</td></tr>
+                                <tr><td><strong>Description:</strong></td><td>${issue.description}</td></tr>
+                                <tr><td><strong>Category:</strong></td><td>${issues.getCategoryDisplayName(issue.category)}</td></tr>
+                                <tr><td><strong>Priority:</strong></td><td><span class="badge ${issues.getPriorityBadgeClass(issue.priority)}">${issue.priority.toUpperCase()}</span></td></tr>
+                                <tr><td><strong>Status:</strong></td><td><span class="badge ${issues.getStatusBadgeClass(issue.status)}">${issue.status.replace('_', ' ').toUpperCase()}</span></td></tr>
+                                <tr><td><strong>Reported:</strong></td><td>${issues.formatDate(issue.createdAt)}</td></tr>
+                                <tr><td><strong>Reported by:</strong></td><td>${issue.reportedBy.name} (${issue.reportedBy.email})</td></tr>
+                                ${issue.assignedTo ? `<tr><td><strong>Assigned to:</strong></td><td>${issue.assignedTo.name}</td></tr>` : ''}
+                                ${issue.assignedAt ? `<tr><td><strong>Assigned:</strong></td><td>${issues.formatDate(issue.assignedAt)}</td></tr>` : ''}
+                                ${issue.resolvedAt ? `<tr><td><strong>Resolved:</strong></td><td>${issues.formatDate(issue.resolvedAt)}</td></tr>` : ''}
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Location</h6>
+                            <p><strong>Block:</strong> ${issue.address.blockNumber || 'N/A'}</p>
+                            <p><strong>Apartment:</strong> ${issue.address.apartmentNumber || 'N/A'}</p>
+                            <p><strong>Floor:</strong> ${issue.address.floorNumber || 'N/A'}</p>
+                            <p><strong>Area:</strong> ${issue.address.area || 'N/A'}</p>
+                        </div>
+                    </div>
+                    
+                    ${issue.images.length > 0 || issue.videos.length > 0 ? `
+                        <hr>
+                        <h6>Media</h6>
+                        <div class="row">
+                            ${issue.images.map(img => `
+                                <div class="col-md-3 mb-2">
+                                    <img src="${img.url}" class="img-fluid rounded" alt="Issue image">
+                                </div>
+                            `).join('')}
+                            ${issue.videos.map(video => `
+                                <div class="col-md-6 mb-2">
+                                    <video controls class="img-fluid rounded">
+                                        <source src="${video.url}" type="video/mp4">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    ${assignments.length > 0 ? `
+                        <hr>
+                        <h6>Assignment History</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Technician</th>
+                                        <th>Status</th>
+                                        <th>Assigned</th>
+                                        <th>Completed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${assignments.map(assignment => `
+                                        <tr>
+                                            <td>${assignment.assignedTo.name}</td>
+                                            <td><span class="badge ${assignment.status === 'completed' ? 'bg-success' : 'bg-warning'}">${assignment.status}</span></td>
+                                            <td>${issues.formatDate(assignment.assignedAt)}</td>
+                                            <td>${assignment.actualCompletionTime ? issues.formatDate(assignment.actualCompletionTime) : 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+                `;
+
+                modal.show();
+            } catch (error) {
+                console.error('View issue details error:', error);
+                alert('Error loading issue details: ' + error.message);
+            }
+        }
+
+        function openAssignModal(issueId) {
+            currentIssueId = issueId;
+            const modal = new bootstrap.Modal(document.getElementById('assignIssueModal'));
+            modal.show();
+        }
+
+        async function assignIssue() {
+            if (!currentIssueId) return;
+
+            const technicianId = document.getElementById('technicianSelect').value;
+            const estimatedTime = document.getElementById('estimatedTime').value;
+            const notes = document.getElementById('assignmentNotes').value;
+
+            if (!technicianId) {
+                alert('Please select a technician');
+                return;
+            }
+
+            try {
+                const data = {
+                    technicianId: technicianId,
+                    estimatedCompletionTime: estimatedTime ? parseInt(estimatedTime) : null,
+                    assignmentNotes: notes || null
+                };
+
+                await issues.assignIssue(currentIssueId, data);
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('assignIssueModal'));
+                modal.hide();
+                
+                // Reset form
+                document.getElementById('assignIssueForm').reset();
+                
+                // Simple refresh instead of full dashboard reload
+                await loadRecentIssues();
+                
+                alert('Issue assigned successfully!');
+            } catch (error) {
+                console.error('Assign issue error:', error);
+                alert('Error assigning issue: ' + error.message);
+            }
+        }
+
+        function refreshData() {
+            const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Refreshing...';
+            }
+            
+            loadDashboardData().finally(() => {
+                if (refreshBtn) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refresh Data';
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

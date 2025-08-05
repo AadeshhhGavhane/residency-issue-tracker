@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Issue - Residential Society</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-home me-2"></i>Residential Society
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="report-issue.html">Report Issue</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="my-issues.html">My Issues</a>
+                    </li>
+                    <li class="nav-item" id="adminLink" style="display: none;">
+                        <a class="nav-link" href="admin-dashboard.html">Admin Dashboard</a>
+                    </li>
+                    <li class="nav-item" id="technicianLink" style="display: none;">
+                        <a class="nav-link" href="technician-dashboard.html">My Assignments</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <img id="userProfilePic" src="https://via.placeholder.com/32x32" alt="Profile" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                            <span id="userName">User</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.html">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="auth.logout()">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Report New Issue
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="issueForm" enctype="multipart/form-data">
+                            <!-- Basic Information -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="title" class="form-label">Issue Title *</label>
+                                    <input type="text" class="form-control" id="title" name="title" required maxlength="100">
+                                    <div class="form-text">Brief description of the issue</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="priority" class="form-label">Priority *</label>
+                                    <select class="form-select" id="priority" name="priority" required>
+                                        <option value="">Select Priority</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Category Selection -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="category" class="form-label">Category *</label>
+                                    <select class="form-select" id="category" name="category" required>
+                                        <option value="">Select Category</option>
+                                        <option value="sanitation">Sanitation</option>
+                                        <option value="security">Security</option>
+                                        <option value="water">Water</option>
+                                        <option value="electricity">Electricity</option>
+                                        <option value="elevator">Elevator</option>
+                                        <option value="noise">Noise</option>
+                                        <option value="parking">Parking</option>
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="cleaning">Cleaning</option>
+                                        <option value="pest_control">Pest Control</option>
+                                        <option value="landscaping">Landscaping</option>
+                                        <option value="fire_safety">Fire Safety</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="customCategory" class="form-label">Custom Category</label>
+                                    <input type="text" class="form-control" id="customCategory" name="customCategory" maxlength="50" disabled>
+                                    <div class="form-text">If "Other" is selected</div>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Detailed Description *</label>
+                                <textarea class="form-control" id="description" name="description" rows="4" required maxlength="1000" placeholder="Please provide a detailed description of the issue..."></textarea>
+                                <div class="form-text">Maximum 1000 characters</div>
+                            </div>
+
+                            <!-- Location Information -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="blockNumber" class="form-label">Block Number</label>
+                                    <input type="text" class="form-control" id="blockNumber" name="blockNumber" maxlength="10">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="apartmentNumber" class="form-label">Apartment Number</label>
+                                    <input type="text" class="form-control" id="apartmentNumber" name="apartmentNumber" maxlength="20">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="floorNumber" class="form-label">Floor Number</label>
+                                    <input type="text" class="form-control" id="floorNumber" name="floorNumber" maxlength="5">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="area" class="form-label">Area/Location</label>
+                                    <input type="text" class="form-control" id="area" name="area" maxlength="100" placeholder="e.g., Parking lot, Garden, Lobby">
+                                </div>
+                            </div>
+
+                            <!-- Location Coordinates -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="latitude" class="form-label">Latitude</label>
+                                    <input type="number" class="form-control" id="latitude" name="latitude" step="any" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="longitude" class="form-label">Longitude</label>
+                                    <input type="number" class="form-control" id="longitude" name="longitude" step="any" readonly>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary" id="getLocationBtn">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Get Current Location
+                                </button>
+                                <small class="text-muted ms-2">Click to automatically get your location</small>
+                            </div>
+
+                            <!-- Media Upload -->
+                            <div class="mb-3">
+                                <label for="media" class="form-label">Photos/Videos</label>
+                                <input type="file" class="form-control" id="media" name="media" multiple accept="image/*,video/*">
+                                <div class="form-text">Upload photos or videos (max 10 files, 2MB each)</div>
+                            </div>
+
+                            <!-- Tags -->
+                            <div class="mb-3">
+                                <label for="tags" class="form-label">Tags</label>
+                                <input type="text" class="form-control" id="tags" name="tags" placeholder="Enter tags separated by commas">
+                                <div class="form-text">Optional tags to help categorize the issue</div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-paper-plane me-2"></i>Report Issue
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5>Submitting Issue Report...</h5>
+                    <p class="text-muted">Please wait while we process your request.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Issue Reported Successfully
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Your issue has been reported successfully. Our team will review it and assign it to the appropriate technician.</p>
+                    <p><strong>Issue ID:</strong> <span id="issueId"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <a href="my-issues.html" class="btn btn-primary">View My Issues</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorMessage">An error occurred while submitting your issue report.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/issues.js"></script>
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication
+            await auth.checkAuth();
+            
+            // Redirect technicians - they shouldn't report issues
+            if (auth.currentUser && auth.currentUser.role === 'technician') {
+                alert('Technicians cannot report issues. Please use My Assignments to view your tasks.');
+                window.location.href = 'technician-dashboard.html';
+                return;
+            }
+            
+            // Initialize form handlers
+            initializeForm();
+        });
+
+        function initializeForm() {
+            const form = document.getElementById('issueForm');
+            const categorySelect = document.getElementById('category');
+            const customCategoryInput = document.getElementById('customCategory');
+            const getLocationBtn = document.getElementById('getLocationBtn');
+
+            // Handle category selection
+            categorySelect.addEventListener('change', function() {
+                if (this.value === 'other') {
+                    customCategoryInput.disabled = false;
+                    customCategoryInput.required = true;
+                } else {
+                    customCategoryInput.disabled = true;
+                    customCategoryInput.required = false;
+                    customCategoryInput.value = '';
+                }
+            });
+
+            // Handle location button
+            getLocationBtn.addEventListener('click', function() {
+                if (navigator.geolocation) {
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Getting Location...';
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            document.getElementById('latitude').value = position.coords.latitude;
+                            document.getElementById('longitude').value = position.coords.longitude;
+                            getLocationBtn.innerHTML = '<i class="fas fa-check me-2"></i>Location Set';
+                            getLocationBtn.classList.remove('btn-outline-primary');
+                            getLocationBtn.classList.add('btn-success');
+                        },
+                        function(error) {
+                            console.error('Geolocation error:', error);
+                            alert('Unable to get location. Please enter coordinates manually.');
+                            getLocationBtn.disabled = false;
+                            getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Get Current Location';
+                        }
+                    );
+                } else {
+                    alert('Geolocation is not supported by this browser.');
+                }
+            });
+
+            // Handle form submission
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const submitBtn = document.getElementById('submitBtn');
+                const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+                loadingModal.show();
+
+                try {
+                    const formData = new FormData(form);
+                    
+                    // Validate location
+                    const latitude = formData.get('latitude');
+                    const longitude = formData.get('longitude');
+                    
+                    if (!latitude || !longitude) {
+                        throw new Error('Location coordinates are required. Please use the "Get Current Location" button or enter coordinates manually.');
+                    }
+
+                    const response = await issues.reportIssue(formData);
+                    
+                    loadingModal.hide();
+                    
+                    // Show success modal
+                    document.getElementById('issueId').textContent = response.data.issue._id;
+                    const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                    successModal.show();
+                    
+                    // Reset form
+                    form.reset();
+                    document.getElementById('latitude').value = '';
+                    document.getElementById('longitude').value = '';
+                    getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt me-2"></i>Get Current Location';
+                    getLocationBtn.classList.remove('btn-success');
+                    getLocationBtn.classList.add('btn-outline-primary');
+                    
+                } catch (error) {
+                    loadingModal.hide();
+                    document.getElementById('errorMessage').textContent = error.message;
+                    const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+                    errorModal.show();
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Report Issue';
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

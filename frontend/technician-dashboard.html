@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technician Dashboard - Residential Society</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-home me-2"></i>Residential Society
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="report-issue.html">Report Issue</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="my-issues.html">My Issues</a>
+                    </li>
+                    <li class="nav-item" id="adminLink" style="display: none;">
+                        <a class="nav-link" href="admin-dashboard.html">Admin Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="technician-dashboard.html">My Assignments</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <img id="userProfilePic" src="https://via.placeholder.com/32x32" alt="Profile" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                            <span id="userName">User</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.html">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="auth.logout()">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="fas fa-tools me-2"></i>My Assignments</h2>
+                <p class="text-muted">Manage your assigned tasks and track your progress</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-outline-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="totalAssignments">-</h4>
+                                <p class="mb-0">Total Assignments</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-list fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="pendingAssignments">-</h4>
+                                <p class="mb-0">Pending</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-clock fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="inProgressAssignments">-</h4>
+                                <p class="mb-0">In Progress</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-spinner fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 id="completedAssignments">-</h4>
+                                <p class="mb-0">Completed</p>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">Status</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="accepted">Accepted</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="priorityFilter" class="form-label">Priority</label>
+                        <select class="form-select" id="priorityFilter">
+                            <option value="">All Priorities</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label">Category</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">All Categories</option>
+                            <option value="sanitation">Sanitation</option>
+                            <option value="security">Security</option>
+                            <option value="water">Water</option>
+                            <option value="electricity">Electricity</option>
+                            <option value="elevator">Elevator</option>
+                            <option value="noise">Noise</option>
+                            <option value="parking">Parking</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="pest_control">Pest Control</option>
+                            <option value="landscaping">Landscaping</option>
+                            <option value="fire_safety">Fire Safety</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-outline-primary" onclick="loadAssignments()">
+                                <i class="fas fa-filter me-2"></i>Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assignments List -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks me-2"></i>My Assignments
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="assignmentsContainer">
+                    <!-- Loading spinner -->
+                    <div id="loadingSpinner" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3">Loading your assignments...</p>
+                    </div>
+
+                    <!-- Assignments will be loaded here -->
+                    <div id="assignmentsList" style="display: none;"></div>
+
+                    <!-- No assignments message -->
+                    <div id="noAssignments" class="text-center py-5" style="display: none;">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Assignments Found</h4>
+                        <p class="text-muted">You don't have any assignments yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignment Details Modal -->
+    <div class="modal fade" id="assignmentDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Assignment Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="assignmentDetailsContent">
+                    <!-- Assignment details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" id="acceptAssignmentBtn" style="display: none;">Accept Assignment</button>
+                    <button type="button" class="btn btn-warning" id="startWorkBtn" style="display: none;">Start Work</button>
+                    <button type="button" class="btn btn-primary" id="completeAssignmentBtn" style="display: none;">Complete Assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complete Assignment Modal -->
+    <div class="modal fade" id="completeAssignmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Complete Assignment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="completeAssignmentForm">
+                        <div class="mb-3">
+                            <label for="completionNotes" class="form-label">Completion Notes</label>
+                            <textarea class="form-control" id="completionNotes" rows="3" placeholder="Describe the work completed..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="timeSpent" class="form-label">Time Spent (minutes)</label>
+                            <input type="number" class="form-control" id="timeSpent" min="1" placeholder="e.g., 120">
+                        </div>
+                        <div class="mb-3">
+                            <label for="materialsUsed" class="form-label">Materials Used (optional)</label>
+                            <textarea class="form-control" id="materialsUsed" rows="2" placeholder="List any materials used..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmCompleteBtn">Complete Assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Assignment Modal -->
+    <div class="modal fade" id="rejectAssignmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-times-circle me-2"></i>Reject Assignment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="rejectAssignmentForm">
+                        <div class="mb-3">
+                            <label for="rejectionReason" class="form-label">Reason for Rejection *</label>
+                            <textarea class="form-control" id="rejectionReason" rows="3" placeholder="Please provide a reason for rejecting this assignment..." required></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmRejectBtn">Reject Assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/issues.js"></script>
+    <script>
+        let currentAssignmentId = null;
+        let assignments = [];
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication and role
+            await auth.checkAuth();
+            
+            if (auth.currentUser.role !== 'technician') {
+                alert('Access denied. Technician privileges required.');
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Load assignments
+            await loadAssignments();
+            
+            // Set up event listeners
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Assignment action buttons
+            document.getElementById('acceptAssignmentBtn').addEventListener('click', acceptAssignment);
+            document.getElementById('startWorkBtn').addEventListener('click', startWork);
+            document.getElementById('completeAssignmentBtn').addEventListener('click', openCompleteModal);
+            document.getElementById('confirmCompleteBtn').addEventListener('click', completeAssignment);
+            document.getElementById('confirmRejectBtn').addEventListener('click', rejectAssignment);
+        }
+
+        async function loadAssignments() {
+            try {
+                // Show loading
+                document.getElementById('loadingSpinner').style.display = 'block';
+                document.getElementById('assignmentsList').style.display = 'none';
+                document.getElementById('noAssignments').style.display = 'none';
+
+                const response = await issues.getAssignments();
+                assignments = response.data.assignments;
+
+                // Hide loading
+                document.getElementById('loadingSpinner').style.display = 'none';
+
+                if (assignments.length === 0) {
+                    document.getElementById('noAssignments').style.display = 'block';
+                    return;
+                }
+
+                // Update stats
+                updateStats();
+                
+                // Display assignments
+                displayAssignments();
+
+            } catch (error) {
+                console.error('Load assignments error:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                alert('Error loading assignments: ' + error.message);
+            }
+        }
+
+        function updateStats() {
+            const total = assignments.length;
+            const pending = assignments.filter(a => a.status === 'pending').length;
+            const inProgress = assignments.filter(a => a.status === 'in_progress').length;
+            const completed = assignments.filter(a => a.status === 'completed').length;
+
+            document.getElementById('totalAssignments').textContent = total;
+            document.getElementById('pendingAssignments').textContent = pending;
+            document.getElementById('inProgressAssignments').textContent = inProgress;
+            document.getElementById('completedAssignments').textContent = completed;
+        }
+
+        function displayAssignments() {
+            const container = document.getElementById('assignmentsList');
+            const filter = document.getElementById('statusFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
+
+            let filteredAssignments = assignments;
+
+            if (filter) {
+                filteredAssignments = filteredAssignments.filter(a => a.status === filter);
+            }
+
+            if (priorityFilter) {
+                filteredAssignments = filteredAssignments.filter(a => a.issue.priority === priorityFilter);
+            }
+
+            if (categoryFilter) {
+                filteredAssignments = filteredAssignments.filter(a => a.issue.category === categoryFilter);
+            }
+
+            if (filteredAssignments.length === 0) {
+                container.innerHTML = '<p class="text-muted">No assignments match the selected filters.</p>';
+                container.style.display = 'block';
+                return;
+            }
+
+            const assignmentsHtml = filteredAssignments.map(assignment => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="card-title">${assignment.issue.title}</h5>
+                                <p class="card-text text-muted">${assignment.issue.description ? assignment.issue.description.substring(0, 100) + (assignment.issue.description.length > 100 ? '...' : '') : 'No description available'}</p>
+                                
+                                <div class="mb-2">
+                                    <span class="badge ${getAssignmentStatusBadgeClass(assignment.status)} me-2">${assignment.status.replace('_', ' ').toUpperCase()}</span>
+                                    <span class="badge ${issues.getPriorityBadgeClass(assignment.issue.priority || 'medium')} me-2">${(assignment.issue.priority || 'medium').toUpperCase()}</span>
+                                    <span class="badge bg-info me-2">${issues.getCategoryDisplayName(assignment.issue.category || 'other')}</span>
+                                </div>
+
+                                <div class="text-muted small">
+                                    <i class="fas fa-calendar me-1"></i>Assigned: ${issues.formatDate(assignment.assignedAt)}
+                                    ${assignment.estimatedCompletionTime ? `<br><i class="fas fa-clock me-1"></i>Estimated: ${issues.formatDate(assignment.estimatedCompletionTime)}` : ''}
+                                    ${assignment.actualCompletionTime ? `<br><i class="fas fa-check me-1"></i>Completed: ${issues.formatDate(assignment.actualCompletionTime)}` : ''}
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-outline-primary btn-sm mb-2" onclick="viewAssignmentDetails('${assignment._id}')">
+                                    <i class="fas fa-eye me-1"></i>View Details
+                                </button>
+                                ${getActionButton(assignment)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = assignmentsHtml;
+            container.style.display = 'block';
+        }
+
+        function getAssignmentStatusBadgeClass(status) {
+            const statusClasses = {
+                'pending': 'bg-secondary',
+                'accepted': 'bg-info',
+                'in_progress': 'bg-warning',
+                'completed': 'bg-success',
+                'rejected': 'bg-danger'
+            };
+            return statusClasses[status] || 'bg-secondary';
+        }
+
+        function getActionButton(assignment) {
+            switch (assignment.status) {
+                case 'pending':
+                    return `
+                        <button class="btn btn-success btn-sm me-1" onclick="acceptAssignment('${assignment._id}')">
+                            <i class="fas fa-check me-1"></i>Accept
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="openRejectModal('${assignment._id}')">
+                            <i class="fas fa-times me-1"></i>Reject
+                        </button>
+                    `;
+                case 'accepted':
+                    return `
+                        <button class="btn btn-warning btn-sm" onclick="startWork('${assignment._id}')">
+                            <i class="fas fa-play me-1"></i>Start Work
+                        </button>
+                    `;
+                case 'in_progress':
+                    return `
+                        <button class="btn btn-primary btn-sm" onclick="openCompleteModal('${assignment._id}')">
+                            <i class="fas fa-check-circle me-1"></i>Complete
+                        </button>
+                    `;
+                case 'completed':
+                    return `<span class="badge bg-success">Completed</span>`;
+                case 'rejected':
+                    return `<span class="badge bg-danger">Rejected</span>`;
+                default:
+                    return '';
+            }
+        }
+
+        async function viewAssignmentDetails(assignmentId) {
+            try {
+                const response = await issues.getAssignment(assignmentId);
+                const { assignment } = response.data;
+
+                const modal = new bootstrap.Modal(document.getElementById('assignmentDetailsModal'));
+                const content = document.getElementById('assignmentDetailsContent');
+
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Issue Information</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>Title:</strong></td><td>${assignment.issue.title || 'N/A'}</td></tr>
+                                <tr><td><strong>Description:</strong></td><td>${assignment.issue.description || 'No description available'}</td></tr>
+                                <tr><td><strong>Category:</strong></td><td>${issues.getCategoryDisplayName(assignment.issue.category || 'other')}</td></tr>
+                                <tr><td><strong>Priority:</strong></td><td><span class="badge ${issues.getPriorityBadgeClass(assignment.issue.priority || 'medium')}">${(assignment.issue.priority || 'medium').toUpperCase()}</span></td></tr>
+                                <tr><td><strong>Status:</strong></td><td><span class="badge ${getAssignmentStatusBadgeClass(assignment.status)}">${assignment.status.replace('_', ' ').toUpperCase()}</span></td></tr>
+                                <tr><td><strong>Assigned:</strong></td><td>${issues.formatDate(assignment.assignedAt)}</td></tr>
+                                <tr><td><strong>Assigned by:</strong></td><td>${assignment.assignedBy.name}</td></tr>
+                                ${assignment.estimatedCompletionTime ? `<tr><td><strong>Estimated completion:</strong></td><td>${issues.formatDate(assignment.estimatedCompletionTime)}</td></tr>` : ''}
+                                ${assignment.actualCompletionTime ? `<tr><td><strong>Completed:</strong></td><td>${issues.formatDate(assignment.actualCompletionTime)}</td></tr>` : ''}
+                                ${assignment.timeSpent ? `<tr><td><strong>Time spent:</strong></td><td>${assignment.timeSpent} minutes</td></tr>` : ''}
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Location</h6>
+                            <p><strong>Block:</strong> ${assignment.issue.address.blockNumber || 'N/A'}</p>
+                            <p><strong>Apartment:</strong> ${assignment.issue.address.apartmentNumber || 'N/A'}</p>
+                            <p><strong>Floor:</strong> ${assignment.issue.address.floorNumber || 'N/A'}</p>
+                            <p><strong>Area:</strong> ${assignment.issue.address.area || 'N/A'}</p>
+                        </div>
+                    </div>
+                    
+                    ${(assignment.issue.images && assignment.issue.images.length > 0) || (assignment.issue.videos && assignment.issue.videos.length > 0) ? `
+                        <hr>
+                        <h6>Media</h6>
+                        <div class="row">
+                            ${assignment.issue.images && assignment.issue.images.map(img => `
+                                <div class="col-md-3 mb-2">
+                                    <img src="${img.url}" class="img-fluid rounded" alt="Issue image">
+                                </div>
+                            `).join('')}
+                            ${assignment.issue.videos && assignment.issue.videos.map(video => `
+                                <div class="col-md-6 mb-2">
+                                    <video controls class="img-fluid rounded">
+                                        <source src="${video.url}" type="video/mp4">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    ${assignment.assignmentNotes ? `
+                        <hr>
+                        <h6>Assignment Notes</h6>
+                        <p class="text-muted">${assignment.assignmentNotes}</p>
+                    ` : ''}
+                    
+                    ${assignment.completionNotes ? `
+                        <hr>
+                        <h6>Completion Notes</h6>
+                        <p class="text-muted">${assignment.completionNotes}</p>
+                    ` : ''}
+                `;
+
+                // Show/hide action buttons based on status
+                const acceptBtn = document.getElementById('acceptAssignmentBtn');
+                const startBtn = document.getElementById('startWorkBtn');
+                const completeBtn = document.getElementById('completeAssignmentBtn');
+
+                acceptBtn.style.display = assignment.status === 'pending' ? 'inline-block' : 'none';
+                startBtn.style.display = assignment.status === 'accepted' ? 'inline-block' : 'none';
+                completeBtn.style.display = assignment.status === 'in_progress' ? 'inline-block' : 'none';
+
+                currentAssignmentId = assignmentId;
+                modal.show();
+            } catch (error) {
+                console.error('View assignment details error:', error);
+                alert('Error loading assignment details: ' + error.message);
+            }
+        }
+
+        async function acceptAssignment(assignmentId) {
+            if (!assignmentId) assignmentId = currentAssignmentId;
+            
+            // Get the button that was clicked
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            
+            try {
+                // Show loading state
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Accepting...';
+                
+                await issues.acceptAssignment(assignmentId);
+                await loadAssignments();
+                
+                // Show success message
+                const successAlert = document.createElement('div');
+                successAlert.className = 'alert alert-success alert-dismissible fade show';
+                successAlert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>Assignment accepted successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(successAlert, document.querySelector('.container').firstChild);
+                
+                // Safely hide modal if it exists
+                const modalElement = document.getElementById('assignmentDetailsModal');
+                if (modalElement) {
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    }
+                }
+            } catch (error) {
+                console.error('Accept assignment error:', error);
+                
+                // Show error message
+                const errorAlert = document.createElement('div');
+                errorAlert.className = 'alert alert-danger alert-dismissible fade show';
+                errorAlert.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error accepting assignment: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(errorAlert, document.querySelector('.container').firstChild);
+            } finally {
+                // Restore button state
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }
+        }
+
+        async function startWork(assignmentId) {
+            if (!assignmentId) assignmentId = currentAssignmentId;
+            
+            // Get the button that was clicked
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            
+            try {
+                // Show loading state
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting Work...';
+                
+                await issues.startWork(assignmentId);
+                await loadAssignments();
+                
+                // Show success message
+                const successAlert = document.createElement('div');
+                successAlert.className = 'alert alert-success alert-dismissible fade show';
+                successAlert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>Work started successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(successAlert, document.querySelector('.container').firstChild);
+                
+                // Safely hide modal if it exists
+                const modalElement = document.getElementById('assignmentDetailsModal');
+                if (modalElement) {
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    }
+                }
+            } catch (error) {
+                console.error('Start work error:', error);
+                
+                // Show error message
+                const errorAlert = document.createElement('div');
+                errorAlert.className = 'alert alert-danger alert-dismissible fade show';
+                errorAlert.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error starting work: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(errorAlert, document.querySelector('.container').firstChild);
+            } finally {
+                // Restore button state
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }
+        }
+
+        function openCompleteModal(assignmentId) {
+            currentAssignmentId = assignmentId;
+            const modal = new bootstrap.Modal(document.getElementById('completeAssignmentModal'));
+            modal.show();
+        }
+
+        async function completeAssignment() {
+            if (!currentAssignmentId) return;
+
+            const notes = document.getElementById('completionNotes').value;
+            const timeSpent = document.getElementById('timeSpent').value;
+            const materialsUsed = document.getElementById('materialsUsed').value;
+
+            if (!notes.trim()) {
+                alert('Please provide completion notes');
+                return;
+            }
+
+            const submitBtn = document.getElementById('confirmCompleteBtn');
+            const originalText = submitBtn.innerHTML;
+
+            try {
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Completing...';
+
+                const data = {
+                    completionNotes: notes,
+                    timeSpent: timeSpent ? parseInt(timeSpent) : null,
+                    materialsUsed: materialsUsed || null
+                };
+
+                await issues.completeAssignment(currentAssignmentId, data);
+                
+                // Safely close modal if it exists
+                const modalElement = document.getElementById('completeAssignmentModal');
+                if (modalElement) {
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    }
+                }
+                
+                // Reset form
+                document.getElementById('completeAssignmentForm').reset();
+                
+                // Refresh assignments
+                await loadAssignments();
+                
+                // Show success message
+                const successAlert = document.createElement('div');
+                successAlert.className = 'alert alert-success alert-dismissible fade show';
+                successAlert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>Assignment completed successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(successAlert, document.querySelector('.container').firstChild);
+            } catch (error) {
+                console.error('Complete assignment error:', error);
+                
+                // Show error message
+                const errorAlert = document.createElement('div');
+                errorAlert.className = 'alert alert-danger alert-dismissible fade show';
+                errorAlert.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error completing assignment: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(errorAlert, document.querySelector('.container').firstChild);
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        function openRejectModal(assignmentId) {
+            currentAssignmentId = assignmentId;
+            const modal = new bootstrap.Modal(document.getElementById('rejectAssignmentModal'));
+            modal.show();
+        }
+
+        async function rejectAssignment() {
+            if (!currentAssignmentId) return;
+
+            const reason = document.getElementById('rejectionReason').value;
+
+            if (!reason.trim()) {
+                alert('Please provide a reason for rejection');
+                return;
+            }
+
+            const submitBtn = document.getElementById('confirmRejectBtn');
+            const originalText = submitBtn.innerHTML;
+
+            try {
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Rejecting...';
+
+                await issues.rejectAssignment(currentAssignmentId, reason);
+                
+                // Safely close modal if it exists
+                const modalElement = document.getElementById('rejectAssignmentModal');
+                if (modalElement) {
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    }
+                }
+                
+                // Reset form
+                document.getElementById('rejectAssignmentForm').reset();
+                
+                // Refresh assignments
+                await loadAssignments();
+                
+                // Show success message
+                const successAlert = document.createElement('div');
+                successAlert.className = 'alert alert-success alert-dismissible fade show';
+                successAlert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>Assignment rejected successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(successAlert, document.querySelector('.container').firstChild);
+            } catch (error) {
+                console.error('Reject assignment error:', error);
+                
+                // Show error message
+                const errorAlert = document.createElement('div');
+                errorAlert.className = 'alert alert-danger alert-dismissible fade show';
+                errorAlert.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error rejecting assignment: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(errorAlert, document.querySelector('.container').firstChild);
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        function refreshData() {
+            loadAssignments();
+        }
+    </script>
+</body>
+</html> 

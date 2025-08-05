@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Auth Starter Kit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="auth-card">
+            <div class="text-center mb-4">
+                <h2>Create Account</h2>
+                <p class="text-muted">Join the Residential Society Issue Tracker</p>
+            </div>
+            
+            <form id="registerForm" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Full Name *</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address *</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password *</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div id="password-strength-bar" class="progress-bar bg-danger" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted">Password strength: <span id="password-strength-text">Very Weak</span></small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role *</label>
+                    <select class="form-select" id="role" name="role" required>
+                        <option value="">Select your role</option>
+                        <option value="resident">Resident</option>
+                        <option value="committee">Committee Member</option>
+                        <option value="technician">Technician</option>
+                    </select>
+                    <div class="form-text">Choose your role in the residential society</div>
+                </div>
+                
+                <!-- Role-specific fields -->
+                <div id="residentFields" class="role-fields" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="apartmentNumber" class="form-label">Apartment Number</label>
+                                <input type="text" class="form-control" id="apartmentNumber" name="apartmentNumber">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="blockNumber" class="form-label">Block Number</label>
+                                <input type="text" class="form-control" id="blockNumber" name="blockNumber">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="technicianFields" class="role-fields" style="display: none;">
+                    <div class="mb-3">
+                        <label for="phoneNumber" class="form-label">Phone Number *</label>
+                        <input type="tel" class="form-control" id="phoneNumber" name="phoneNumber" pattern="[0-9]{10}">
+                        <div class="form-text">10-digit phone number</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="specializations" class="form-label">Specializations</label>
+                        <select class="form-select" id="specializations" name="specializations" multiple>
+                            <option value="plumbing">Plumbing</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="carpentry">Carpentry</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="security">Security</option>
+                            <option value="elevator">Elevator</option>
+                            <option value="general">General</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple specializations</div>
+                    </div>
+                </div>
+                
+                <div id="committeeFields" class="role-fields" style="display: none;">
+                    <div class="mb-3">
+                        <label for="phoneNumber" class="form-label">Phone Number *</label>
+                        <input type="tel" class="form-control" id="committeePhoneNumber" name="phoneNumber" pattern="[0-9]{10}">
+                        <div class="form-text">10-digit phone number</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="permissions" class="form-label">Permissions</label>
+                        <select class="form-select" id="permissions" name="permissions" multiple>
+                            <option value="assign_issues">Assign Issues</option>
+                            <option value="view_reports">View Reports</option>
+                            <option value="manage_users">Manage Users</option>
+                            <option value="manage_technicians">Manage Technicians</option>
+                            <option value="view_analytics">View Analytics</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple permissions</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="profile-picture-input" class="form-label">Profile Picture</label>
+                    <input type="file" class="form-control" id="profile-picture-input" name="profilePicture" accept="image/*">
+                    <div class="form-text">Maximum file size: 2MB. Supported formats: JPG, PNG, GIF, WebP</div>
+                    <img id="profile-picture-preview" class="profile-picture-preview" style="display: none;" alt="Preview">
+                </div>
+                
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" id="registerBtn">
+                        <span class="btn-text">Create Account</span>
+                        <span class="loading-spinner" style="display: none;"></span>
+                    </button>
+                </div>
+            </form>
+            
+            <div class="loading" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <p class="mb-0">Already have an account? <a href="login.html" class="text-decoration-none">Sign in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        // Role-based field visibility
+        document.getElementById('role').addEventListener('change', function() {
+            const role = this.value;
+            const roleFields = document.querySelectorAll('.role-fields');
+            
+            // Hide all role-specific fields
+            roleFields.forEach(field => field.style.display = 'none');
+            
+            // Show fields based on selected role
+            if (role === 'resident') {
+                document.getElementById('residentFields').style.display = 'block';
+            } else if (role === 'technician') {
+                document.getElementById('technicianFields').style.display = 'block';
+            } else if (role === 'committee') {
+                document.getElementById('committeeFields').style.display = 'block';
+            }
+        });
+
+        // Password strength checker
+        document.getElementById('password').addEventListener('input', function() {
+            const password = this.value;
+            const strengthBar = document.getElementById('password-strength-bar');
+            const strengthText = document.getElementById('password-strength-text');
+            
+            let strength = 0;
+            let color = 'danger';
+            let text = 'Very Weak';
+            
+            if (password.length >= 8) strength += 20;
+            if (/[a-z]/.test(password)) strength += 20;
+            if (/[A-Z]/.test(password)) strength += 20;
+            if (/[0-9]/.test(password)) strength += 20;
+            if (/[@$!%*?&]/.test(password)) strength += 20;
+            
+            if (strength >= 100) {
+                color = 'success';
+                text = 'Strong';
+            } else if (strength >= 80) {
+                color = 'info';
+                text = 'Good';
+            } else if (strength >= 60) {
+                color = 'warning';
+                text = 'Fair';
+            } else if (strength >= 40) {
+                color = 'danger';
+                text = 'Weak';
+            }
+            
+            strengthBar.style.width = strength + '%';
+            strengthBar.className = `progress-bar bg-${color}`;
+            strengthText.textContent = text;
+        });
+        
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Validate password strength
+            const password = document.getElementById('password').value;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            if (!passwordRegex.test(password)) {
+                auth.showAlert('Password must be at least 8 characters with uppercase, lowercase, number, and special character', 'danger');
+                return;
+            }
+            
+            // Validate file size
+            const fileInput = document.getElementById('profile-picture-input');
+            if (fileInput.files[0]) {
+                const fileSize = fileInput.files[0].size;
+                const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+                
+                if (fileSize > maxSize) {
+                    auth.showAlert('Profile picture must be less than 2MB', 'danger');
+                    return;
+                }
+            }
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('name').value);
+            formData.append('email', document.getElementById('email').value);
+            formData.append('password', document.getElementById('password').value);
+            formData.append('role', document.getElementById('role').value);
+            
+            // Add role-specific fields
+            const role = document.getElementById('role').value;
+            if (role === 'resident') {
+                const apartmentNumber = document.getElementById('apartmentNumber').value;
+                const blockNumber = document.getElementById('blockNumber').value;
+                if (apartmentNumber) formData.append('apartmentNumber', apartmentNumber);
+                if (blockNumber) formData.append('blockNumber', blockNumber);
+            } else if (role === 'technician') {
+                const phoneNumber = document.getElementById('phoneNumber').value;
+                const specializations = Array.from(document.getElementById('specializations').selectedOptions).map(option => option.value);
+                if (phoneNumber) formData.append('phoneNumber', phoneNumber);
+                if (specializations.length > 0) {
+                    specializations.forEach(spec => formData.append('specializations', spec));
+                }
+            } else if (role === 'committee') {
+                const phoneNumber = document.getElementById('committeePhoneNumber').value;
+                const permissions = Array.from(document.getElementById('permissions').selectedOptions).map(option => option.value);
+                if (phoneNumber) formData.append('phoneNumber', phoneNumber);
+                if (permissions.length > 0) {
+                    permissions.forEach(perm => formData.append('permissions', perm));
+                }
+            }
+            
+            // Add profile picture file if selected
+            if (fileInput.files[0]) {
+                formData.append('profilePicture', fileInput.files[0]);
+            }
+            
+            await auth.register(formData);
+        });
+    </script>
+</body>
+</html> 
