@@ -54,8 +54,6 @@ export interface Issue {
   rating?: number;
   ratingComment?: string;
   ratedAt?: string;
-  // Cost field
-  cost?: number;
 }
 
 export interface Assignment {
@@ -75,6 +73,7 @@ export interface Assignment {
   actualCompletion?: string;
   workLog?: string[];
   materialsUsed?: string[];
+  paymentAmount?: number;
 }
 
 interface IssuesState {
@@ -84,6 +83,12 @@ interface IssuesState {
   selectedAssignment: Assignment | null;
   isLoading: boolean;
   error: string | null;
+  // Cache for better performance
+  cache: {
+    issues: Record<string, { data: { issues: Issue[]; pagination: any }; timestamp: number; ttl: number }>;
+    assignments: Record<string, { data: { assignments: Assignment[]; pagination: any }; timestamp: number; ttl: number }>;
+    analytics: Record<string, { data: any; timestamp: number; ttl: number }>;
+  };
   pagination: {
     page: number;
     limit: number;
@@ -107,6 +112,11 @@ const initialState: IssuesState = {
   selectedAssignment: null,
   isLoading: false,
   error: null,
+  cache: {
+    issues: {},
+    assignments: {},
+    analytics: {},
+  },
   pagination: {
     page: 1,
     limit: 10,
@@ -121,20 +131,26 @@ export const fetchIssues = createAsyncThunk(
   'issues/fetchIssues',
   async (params: any = {}, { rejectWithValue, getState }) => {
     try {
-      // Get user role from state to determine which endpoint to use
       const state = getState() as any;
       const userRole = state.auth.user?.role;
+      const issuesState = state.issues;
+      
+      // Create cache key
+      const cacheKey = JSON.stringify({ params, userRole });
+      const cachedData = issuesState.cache.issues[cacheKey];
+      
+      // Check if cache is valid (5 minutes TTL)
+      if (cachedData && Date.now() - cachedData.timestamp < cachedData.ttl) {
+        return cachedData.data;
+      }
       
       let response;
       if (userRole === 'committee') {
-        // Committee members can see all issues
         response = await issuesAPI.getAllIssues(params);
       } else {
-        // Regular users see only their issues
         response = await issuesAPI.getIssues(params);
       }
       
-      // Backend returns: { success: true, data: { issues, pagination } }
       return response.data || response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch issues');
@@ -251,8 +267,19 @@ const issuesSlice = createSlice({
       .addCase(fetchIssues.fulfilled, (state, action) => {
         state.isLoading = false;
         const payload = action.payload as any;
-        state.issues = payload.issues || payload.data?.issues || [];
-        state.pagination = payload.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 };
+        const issues = payload.issues || payload.data?.issues || [];
+        const pagination = payload.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 };
+        
+        // Cache the data
+        const cacheKey = JSON.stringify({ params: action.meta.arg, userRole: 'committee' }); // Simplified key
+        state.cache.issues[cacheKey] = {
+          data: { issues, pagination },
+          timestamp: Date.now(),
+          ttl: 5 * 60 * 1000 // 5 minutes
+        };
+        
+        state.issues = issues;
+        state.pagination = pagination;
       })
       .addCase(fetchIssues.rejected, (state, action) => {
         state.isLoading = false;
@@ -317,18 +344,59 @@ const issuesSlice = createSlice({
       .addCase(updateAssignment.fulfilled, (state, action) => {
         state.isLoading = false;
         const payload = action.payload as any;
-        const updatedAssignment = payload.data?.assignment || payload.assignment || payload;
-        const index = state.assignments.findIndex(assignment => assignment._id === updatedAssignment._id);
-        if (index !== -1) {
-          state.assignments[index] = updatedAssignment;
+        
+        console.log('UpdateAssignment fulfilled payload:', payload);
+        
+        // Handle different response structures
+        let updatedAssignment;
+        if (payload.data?.assignment) {
+          updatedAssignment = payload.data.assignment;
+        } else if (payload.assignment) {
+          updatedAssignment = payload.assignment;
+        } else if (payload.data) {
+          updatedAssignment = payload.data;
+        } else {
+          updatedAssignment = payload;
         }
-        if (state.selectedAssignment?._id === updatedAssignment._id) {
-          state.selectedAssignment = updatedAssignment;
+        
+        console.log('Extracted updated assignment:', updatedAssignment);
+        
+        // Update the assignment in the assignments array
+        if (updatedAssignment && updatedAssignment._id) {
+          const index = state.assignments.findIndex(assignment => assignment._id === updatedAssignment._id);
+          console.log('Found assignment at index:', index);
+          
+          if (index !== -1) {
+            // Merge the updated assignment with existing data to preserve populated fields
+            const existingAssignment = state.assignments[index];
+            state.assignments[index] = {
+              ...existingAssignment,
+              ...updatedAssignment,
+              // Ensure status is updated
+              status: updatedAssignment.status || existingAssignment.status
+            };
+            console.log('Updated assignment in state:', state.assignments[index]);
+          } else {
+            console.log('Assignment not found in state, adding new assignment');
+            state.assignments.push(updatedAssignment);
+          }
+          
+          // Update selected assignment if it's the same one
+          if (state.selectedAssignment?._id === updatedAssignment._id) {
+            state.selectedAssignment = {
+              ...state.selectedAssignment,
+              ...updatedAssignment,
+              status: updatedAssignment.status || state.selectedAssignment.status
+            };
+          }
+        } else {
+          console.log('No valid assignment data in payload');
         }
       })
       .addCase(updateAssignment.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+        console.log('UpdateAssignment rejected:', action.payload);
       })
       // Assign Issue
       .addCase(assignIssue.fulfilled, (state, action) => {

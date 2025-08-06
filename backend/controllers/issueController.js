@@ -7,6 +7,7 @@ const { AuditService } = require('../services/auditService');
 const emailService = require('../services/emailService');
 const aiService = require('../services/aiService');
 const GeocodingService = require('../services/geocodingService');
+const { clearCache } = require('../middleware/cache');
 const { 
   sendIssueNotificationWhatsApp,
   sendAssignmentNotificationWhatsApp
@@ -117,6 +118,9 @@ const createIssue = async (req, res) => {
 
     await issue.save();
 
+    // Clear cache for issues
+    clearCache('/api/issues');
+
     // Detect priority using AI
     try {
       const aiPriority = await aiService.detectPriority(title, description, category);
@@ -220,34 +224,29 @@ const getIssues = async (req, res) => {
     const limitNum = parseInt(limit);
 
     const issues = await Issue.find(filter)
-      .populate('reportedBy', 'name email')
-      .populate('assignedTo', 'name email')
+      .select('title description category priority status location address reportedBy assignedTo assignedAt createdAt updatedAt tags images videos')
+      .populate('reportedBy', 'name email phoneNumber')
+      .populate('assignedTo', 'name email phoneNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean(); // Use lean() for better performance
 
-    // Add readable addresses to issues
-    const issuesWithAddresses = await Promise.all(issues.map(async (issue) => {
-      const issueObj = issue.toObject();
-      
-      // If issue has coordinates, get readable address
-      if (issueObj.location && issueObj.location.coordinates) {
-        const [lng, lat] = issueObj.location.coordinates;
-        const readableAddress = await GeocodingService.reverseGeocode(lat, lng);
-        issueObj.readableAddress = readableAddress;
-      }
-      
-      return issueObj;
+    // Add reportedByName and assignedToName fields for frontend compatibility
+    const issuesWithNames = issues.map(issue => ({
+      ...issue,
+      reportedByName: issue.reportedBy?.name || 'Unknown',
+      assignedToName: issue.assignedTo?.name || null
     }));
 
     const total = await Issue.countDocuments(filter);
 
-    logger.info(`Issues retrieved: ${issuesWithAddresses.length} by user: ${req.user._id}`);
+    logger.info(`Issues retrieved: ${issuesWithNames.length} by user: ${req.user._id}`);
 
     res.json({
       success: true,
       data: {
-        issues: issuesWithAddresses,
+        issues: issuesWithNames,
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -301,34 +300,32 @@ const getAllIssues = async (req, res) => {
     const limitNum = parseInt(limit);
 
     const issues = await Issue.find(filter)
-      .populate('reportedBy', 'name email')
-      .populate('assignedTo', 'name email')
+      .select('title description category priority status location address reportedBy assignedTo assignedAt createdAt updatedAt tags images videos')
+      .populate('reportedBy', 'name email phoneNumber')
+      .populate('assignedTo', 'name email phoneNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean(); // Use lean() for better performance
 
-    // Add readable addresses to issues
-    const issuesWithAddresses = await Promise.all(issues.map(async (issue) => {
-      const issueObj = issue.toObject();
-      
-      // If issue has coordinates, get readable address
-      if (issueObj.location && issueObj.location.coordinates) {
-        const [lng, lat] = issueObj.location.coordinates;
-        const readableAddress = await GeocodingService.reverseGeocode(lat, lng);
-        issueObj.readableAddress = readableAddress;
-      }
-      
-      return issueObj;
+    // Add reportedByName and assignedToName fields for frontend compatibility
+    const issuesWithNames = issues.map(issue => ({
+      ...issue,
+      reportedByName: issue.reportedBy?.name || 'Unknown',
+      assignedToName: issue.assignedTo?.name || null
     }));
 
     const total = await Issue.countDocuments(filter);
 
-    logger.info(`All issues retrieved: ${issuesWithAddresses.length} by admin user: ${req.user._id}`);
+    logger.info(`All issues retrieved: ${issuesWithNames.length} by admin user: ${req.user._id}`);
+
+    // Add cache header for performance monitoring
+    res.setHeader('X-Cache', 'MISS');
 
     res.json({
       success: true,
       data: {
-        issues: issuesWithAddresses,
+        issues: issuesWithNames,
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -521,10 +518,10 @@ const deleteIssue = async (req, res) => {
  */
 const assignIssue = async (req, res) => {
   try {
-    const { technicianId, estimatedCompletionTime, assignmentNotes, cost } = req.body;
+    const { technicianId, estimatedCompletionTime, assignmentNotes, paymentAmount } = req.body;
 
     logger.info('Assign issue request body:', req.body);
-    logger.info('Cost value received:', cost, 'Type:', typeof cost);
+    logger.info('Payment amount received:', paymentAmount, 'Type:', typeof paymentAmount);
 
     if (!technicianId) {
       return res.status(400).json({
@@ -533,13 +530,13 @@ const assignIssue = async (req, res) => {
       });
     }
 
-    // Validate cost if provided
-    if (cost !== undefined && cost !== null && cost !== '') {
-      const costNum = Number(cost);
-      if (isNaN(costNum) || costNum < 0) {
+    // Validate payment amount if provided
+    if (paymentAmount !== undefined && paymentAmount !== null && paymentAmount !== '') {
+      const paymentNum = Number(paymentAmount);
+      if (isNaN(paymentNum) || paymentNum < 0) {
         return res.status(400).json({
           success: false,
-          message: 'Cost must be a non-negative number'
+          message: 'Payment amount must be a non-negative number'
         });
       }
     }
@@ -560,18 +557,19 @@ const assignIssue = async (req, res) => {
       });
     }
 
-    // Create assignment
+    // Create assignment with payment amount
     const assignment = new Assignment({
       issue: issue._id,
       assignedTo: technicianId,
       assignedBy: req.user._id,
       estimatedCompletionTime: estimatedCompletionTime ? new Date(Date.now() + estimatedCompletionTime * 60 * 60 * 1000) : null,
-      assignmentNotes: assignmentNotes || null
+      assignmentNotes: assignmentNotes || null,
+      paymentAmount: paymentAmount !== undefined && paymentAmount !== null && paymentAmount !== '' ? Number(paymentAmount) : 0
     });
 
     await assignment.save();
 
-    // Prepare update data
+    // Prepare update data for issue (no cost field)
     const updateData = {
       assignedTo: technicianId,
       assignedBy: req.user._id,
@@ -583,21 +581,7 @@ const assignIssue = async (req, res) => {
       updateData.estimatedCompletionTime = estimatedCompletionTime;
     }
     
-    logger.info('Cost processing - cost value:', cost, 'type:', typeof cost);
-    
-    if (cost !== undefined && cost !== null && cost !== '') {
-      const costNum = Number(cost);
-      if (!isNaN(costNum)) {
-        updateData.cost = costNum;
-        logger.info(`Setting cost for issue ${issue._id}: ${costNum}`);
-      } else {
-        logger.info('Cost is NaN, not setting cost');
-      }
-    } else {
-      logger.info('Cost is undefined/null/empty, not setting cost');
-      // Explicitly set cost to null to prevent default value
-      updateData.cost = null;
-    }
+    logger.info('Payment amount processing - payment amount:', paymentAmount, 'type:', typeof paymentAmount);
     
     // Update issue using findByIdAndUpdate
     logger.info('Update data being sent to database:', updateData);
@@ -817,59 +801,91 @@ const getAnalytics = async (req, res) => {
     let filter = { createdAt: { $gte: startDate } };
     if (category) filter.category = category;
 
-    // Get analytics data
-    const totalIssues = await Issue.countDocuments(filter);
-    const resolvedIssues = await Issue.countDocuments({ ...filter, status: { $in: ['resolved', 'closed'] } });
-    const pendingIssues = await Issue.countDocuments({ ...filter, status: { $in: ['new', 'assigned', 'in_progress'] } });
-
-    // Category distribution
-    const categoryStats = await Issue.aggregate([
-      { $match: filter },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
+    // Get analytics data with optimized queries
+    const [totalIssues, resolvedIssues, pendingIssues, categoryStats, priorityStats, statusStats] = await Promise.all([
+      Issue.countDocuments(filter),
+      Issue.countDocuments({ ...filter, status: { $in: ['resolved', 'closed'] } }),
+      Issue.countDocuments({ ...filter, status: { $in: ['new', 'assigned', 'in_progress'] } }),
+      Issue.aggregate([
+        { $match: filter },
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]).hint({ category: 1, createdAt: -1 }),
+      Issue.aggregate([
+        { $match: filter },
+        { $group: { _id: '$priority', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]).hint({ priority: 1, createdAt: -1 }),
+      Issue.aggregate([
+        { $match: filter },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]).hint({ status: 1, createdAt: -1 })
     ]);
 
-    // Priority distribution
-    const priorityStats = await Issue.aggregate([
-      { $match: filter },
-      { $group: { _id: '$priority', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    // Status distribution
-    const statusStats = await Issue.aggregate([
-      { $match: filter },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    // Cost analytics
-    const costStats = await Issue.aggregate([
-      { $match: { ...filter, cost: { $exists: true, $ne: null, $gt: 0 } } },
+    // Payment amount analytics (from assignments)
+    const paymentStats = await Assignment.aggregate([
+      { 
+        $match: { 
+          paymentAmount: { $exists: true, $ne: null, $gt: 0 } 
+        } 
+      },
+      {
+        $lookup: {
+          from: 'issues',
+          localField: 'issue',
+          foreignField: '_id',
+          as: 'issue'
+        }
+      },
+      {
+        $unwind: '$issue'
+      },
+      {
+        $match: filter
+      },
       {
         $group: {
           _id: null,
-          totalCost: { $sum: '$cost' },
-          averageCost: { $avg: '$cost' },
-          minCost: { $min: '$cost' },
-          maxCost: { $max: '$cost' },
-          costCount: { $sum: 1 }
+          totalPayment: { $sum: '$paymentAmount' },
+          averagePayment: { $avg: '$paymentAmount' },
+          minPayment: { $min: '$paymentAmount' },
+          maxPayment: { $max: '$paymentAmount' },
+          paymentCount: { $sum: 1 }
         }
       }
     ]);
 
-    // Cost by category
-    const costByCategory = await Issue.aggregate([
-      { $match: { ...filter, cost: { $exists: true, $ne: null, $gt: 0 } } },
+    // Payment by category
+    const paymentByCategory = await Assignment.aggregate([
+      { 
+        $match: { 
+          paymentAmount: { $exists: true, $ne: null, $gt: 0 } 
+        } 
+      },
+      {
+        $lookup: {
+          from: 'issues',
+          localField: 'issue',
+          foreignField: '_id',
+          as: 'issue'
+        }
+      },
+      {
+        $unwind: '$issue'
+      },
+      {
+        $match: filter
+      },
       {
         $group: {
-          _id: '$category',
-          totalCost: { $sum: '$cost' },
-          averageCost: { $avg: '$cost' },
+          _id: '$issue.category',
+          totalPayment: { $sum: '$paymentAmount' },
+          averagePayment: { $avg: '$paymentAmount' },
           count: { $sum: 1 }
         }
       },
-      { $sort: { totalCost: -1 } }
+      { $sort: { totalPayment: -1 } }
     ]);
 
     // Average resolution time
@@ -922,14 +938,14 @@ const getAnalytics = async (req, res) => {
         categoryStats,
         priorityStats,
         statusStats,
-        costStats: costStats[0] || {
-          totalCost: 0,
-          averageCost: 0,
-          minCost: 0,
-          maxCost: 0,
-          costCount: 0
+        paymentStats: paymentStats[0] || {
+          totalPayment: 0,
+          averagePayment: 0,
+          minPayment: 0,
+          maxPayment: 0,
+          paymentCount: 0
         },
-        costByCategory
+        paymentByCategory
       }
     });
 

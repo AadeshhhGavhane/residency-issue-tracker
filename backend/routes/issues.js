@@ -7,6 +7,7 @@ const {
   requireIssueAccess 
 } = require('../middleware/roleAuth');
 const { upload } = require('../middleware/upload');
+const { cacheMiddleware } = require('../middleware/cache');
 const issueController = require('../controllers/issueController');
 
 /**
@@ -170,7 +171,7 @@ router.post('/', protect, upload.array('media', 10), issueController.createIssue
  *       401:
  *         description: Not authenticated
  */
-router.get('/', protect, issueController.getIssues);
+router.get('/', protect, cacheMiddleware(180), issueController.getIssues); // Cache for 3 minutes
 
 /**
  * @swagger
@@ -211,7 +212,7 @@ router.get('/', protect, issueController.getIssues);
  *       403:
  *         description: Access denied (not admin/committee)
  */
-router.get('/admin/all', protect, requireStaff(), issueController.getAllIssues);
+router.get('/admin/all', protect, requireStaff(), cacheMiddleware(180), issueController.getAllIssues); // Cache for 3 minutes
 
 /**
  * @swagger
@@ -223,7 +224,7 @@ router.get('/admin/all', protect, requireStaff(), issueController.getAllIssues);
  *       200:
  *         description: List of categories
  */
-router.get('/categories', issueController.getCategories);
+router.get('/categories', cacheMiddleware(3600), issueController.getCategories); // Cache for 1 hour
 
 /**
  * @swagger
@@ -251,7 +252,7 @@ router.get('/categories', issueController.getCategories);
  *       403:
  *         description: Access denied
  */
-router.get('/analytics', protect, requireStaff(), issueController.getAnalytics);
+router.get('/analytics', protect, requireStaff(), cacheMiddleware(300), issueController.getAnalytics); // Cache for 5 minutes
 
 /**
  * @swagger
@@ -277,7 +278,7 @@ router.get('/analytics', protect, requireStaff(), issueController.getAnalytics);
  *       403:
  *         description: Access denied
  */
-router.get('/:issueId', protect, requireIssueAccess('read'), issueController.getIssue);
+router.get('/:issueId', protect, requireIssueAccess('read'), cacheMiddleware(300), issueController.getIssue); // Cache for 5 minutes
 
 /**
  * @swagger

@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) => {
           {/* Footer */}
           <div className="p-4 border-t border-border">
             <div className="text-center text-xs text-muted-foreground">
-              {t('common.societyTracker')} v1.0
+              Vaitarna Society v1.0
             </div>
           </div>
         </div>

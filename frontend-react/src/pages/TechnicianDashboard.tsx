@@ -21,9 +21,27 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { RootState, AppDispatch } from '@/store';
 import { fetchAssignments, updateAssignment } from '@/store/slices/issuesSlice';
+import GoogleTranslate from '@/components/GoogleTranslate';
+import { toast } from '@/hooks/use-toast';
 
 const TechnicianDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
+  
+  // Add CSS animation for fade-in effect
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   const { assignments, isLoading } = useSelector((state: RootState) => state.issues);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
@@ -74,24 +92,24 @@ const TechnicianDashboard = () => {
     const completed = validAssignments.filter(a => a.status === 'completed').length;
     const rejected = validAssignments.filter(a => a.status === 'rejected').length;
 
-    // Cost analytics for completed assignments
+    // Payment analytics for completed assignments
     const completedAssignments = validAssignments.filter(a => a.status === 'completed');
-    const assignmentsWithCost = completedAssignments.filter(a => a.issue.cost && a.issue.cost > 0);
-    const totalEarnings = assignmentsWithCost.reduce((sum, a) => sum + (a.issue?.cost || 0), 0);
-    const averageEarnings = assignmentsWithCost.length > 0 ? totalEarnings / assignmentsWithCost.length : 0;
+    const assignmentsWithPayment = completedAssignments.filter(a => a.paymentAmount && a.paymentAmount > 0);
+    const totalEarnings = assignmentsWithPayment.reduce((sum, a) => sum + (a.paymentAmount || 0), 0);
+    const averageEarnings = assignmentsWithPayment.length > 0 ? totalEarnings / assignmentsWithPayment.length : 0;
 
-    return {
-      total,
-      pending,
-      accepted,
-      inProgress,
-      completed,
-      rejected,
-      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
-      totalEarnings,
-      averageEarnings,
-      paidAssignments: assignmentsWithCost.length
-    };
+          return {
+        total,
+        pending,
+        accepted,
+        inProgress,
+        completed,
+        rejected,
+        completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+        totalEarnings,
+        averageEarnings,
+        paidAssignments: assignmentsWithPayment.length
+      };
   };
 
   const analytics = getAnalytics();
@@ -137,24 +155,82 @@ const TechnicianDashboard = () => {
   };
 
   const handleRejectAssignment = async () => {
-    if (selectedAssignment && rejectionReason.trim()) {
-      setIsRejecting(true);
-      try {
-        await dispatch(updateAssignment({
-          id: selectedAssignment._id,
-          action: 'reject',
-          data: { reason: rejectionReason }
-        }));
-        setShowRejectDialog(false);
-        setRejectionReason('');
-        setSelectedAssignment(null);
-        await dispatch(fetchAssignments({}));
-      } catch (error) {
-        console.error('Error rejecting assignment:', error);
-        alert('Error rejecting assignment: ' + (error as any).message);
-      } finally {
-        setIsRejecting(false);
-      }
+    if (!selectedAssignment) {
+      toast({
+        title: "Error",
+        description: "No assignment selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if assignment is in correct state for rejection
+    if (selectedAssignment.status !== 'pending') {
+      toast({
+        title: "Error",
+        description: "Only pending assignments can be rejected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!rejectionReason.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please provide a reason for rejection",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('Starting reject assignment process:', {
+      assignmentId: selectedAssignment._id,
+      status: selectedAssignment.status,
+      reason: rejectionReason
+    });
+
+    console.log('Current assignments before rejection:', assignments);
+
+    setIsRejecting(true);
+    try {
+      const result = await dispatch(updateAssignment({
+        id: selectedAssignment._id,
+        action: 'reject',
+        data: { reason: rejectionReason }
+      })).unwrap();
+
+      // Show success message
+      console.log('Assignment rejected successfully:', result);
+      
+      toast({
+        title: "Success",
+        description: "Assignment rejected successfully",
+        variant: "default",
+      });
+      
+      // Reset form and close dialog
+      setShowRejectDialog(false);
+      setRejectionReason('');
+      setSelectedAssignment(null);
+      
+      // Refresh assignments to get updated data
+      console.log('Refreshing assignments...');
+      await dispatch(fetchAssignments({}));
+      
+      console.log('Assignments after refresh:', assignments);
+      
+    } catch (error: any) {
+      console.error('Error rejecting assignment:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to reject assignment';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -209,7 +285,7 @@ const TechnicianDashboard = () => {
               variant="outline"
               size="sm"
               onClick={() => handleAcceptAssignment(assignment._id)}
-              className="text-success border-success hover:bg-success hover:text-white"
+              className="text-success border-success hover:bg-success hover:text-white transition-all duration-200 shadow-sm"
             >
               <CheckCircle className="h-4 w-4 mr-1" />
               Accept
@@ -221,7 +297,7 @@ const TechnicianDashboard = () => {
                 setSelectedAssignment(assignment);
                 setShowRejectDialog(true);
               }}
-              className="text-destructive border-destructive hover:bg-destructive hover:text-white"
+              className="text-destructive border-destructive hover:bg-destructive hover:text-white transition-all duration-200 shadow-sm"
             >
               <XCircle className="h-4 w-4 mr-1" />
               Reject
@@ -234,7 +310,7 @@ const TechnicianDashboard = () => {
             variant="default"
             size="sm"
             onClick={() => handleStartWork(assignment._id)}
-            className="bg-gradient-hero hover:opacity-90"
+            className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg transition-all duration-200"
           >
             <Play className="h-4 w-4 mr-1" />
             Start Work
@@ -249,16 +325,26 @@ const TechnicianDashboard = () => {
               setSelectedAssignment(assignment);
               setShowCompleteDialog(true);
             }}
-            className="bg-gradient-status text-white hover:opacity-90"
+            className="bg-gradient-to-r from-success to-success/80 hover:from-success/90 hover:to-success/70 text-white shadow-lg transition-all duration-200"
           >
             <Check className="h-4 w-4 mr-1" />
             Complete
           </Button>
         );
       case 'completed':
-        return <Badge className="bg-success text-success-foreground">Completed</Badge>;
+        return (
+          <Badge className="bg-success text-success-foreground px-3 py-1 shadow-sm">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        );
       case 'rejected':
-        return <Badge className="bg-destructive text-destructive-foreground">Rejected</Badge>;
+        return (
+          <Badge className="bg-destructive text-destructive-foreground px-3 py-1 shadow-sm">
+            <XCircle className="h-3 w-3 mr-1" />
+            Rejected
+          </Badge>
+        );
       default:
         return null;
     }
@@ -282,74 +368,93 @@ const TechnicianDashboard = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">My Assignments</h1>
-        <p className="text-muted-foreground">
-          Manage your work assignments and track progress
-        </p>
+    <div className="space-y-6">
+      {/* Enhanced Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            My Assignments
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your work assignments and track progress
+          </p>
+        </div>
+                 <div className="flex items-center gap-3">
+           <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg">
+             <Wrench className="h-4 w-4 text-primary" />
+             <span className="text-sm font-medium text-muted-foreground">
+               {analytics.total} Active Assignments
+             </span>
+           </div>
+           <GoogleTranslate />
+         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
-        <Card className="shadow-card">
+      {/* Enhanced Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <Wrench className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
+            <Wrench className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.total}</div>
+            <div className="text-2xl font-bold text-primary">{analytics.total}</div>
+            <p className="text-xs text-muted-foreground mt-1">All assignments</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-warning">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning">{analytics.pending}</div>
+            <p className="text-xs text-muted-foreground mt-1">Awaiting response</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-info">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Accepted</CardTitle>
             <CheckCircle className="h-4 w-4 text-info" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-info">{analytics.accepted}</div>
+            <p className="text-xs text-muted-foreground mt-1">Ready to start</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-warning">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">In Progress</CardTitle>
             <Play className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning">{analytics.inProgress}</div>
+            <p className="text-xs text-muted-foreground mt-1">Currently working</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-success">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">{analytics.completed}</div>
+            <p className="text-xs text-muted-foreground mt-1">Finished work</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-success bg-gradient-to-br from-success/5 to-success/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
             <CheckCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">{analytics.completionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">Completion rate</p>
           </CardContent>
         </Card>
       </div>
@@ -358,24 +463,39 @@ const TechnicianDashboard = () => {
       <div className="space-y-4">
         {analytics.total === 0 ? (
           <Card className="shadow-card">
-            <CardContent className="text-center py-12">
-              <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No assignments yet</h3>
-              <p className="text-muted-foreground">
-                You don't have any assignments at the moment. Check back later for new work assignments.
-              </p>
+            <CardContent className="text-center py-16">
+              <div className="mb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Wrench className="h-10 w-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3 text-primary">No assignments yet</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  You don't have any assignments at the moment. Check back later for new work assignments from the committee.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>New assignments will appear here automatically</span>
+              </div>
             </CardContent>
           </Card>
         ) : (
           assignments
             .filter(assignment => assignment && assignment.issue && assignment.issue.title) // Filter invalid assignments
-            .map((assignment) => (
-              <Card key={assignment._id} className="shadow-card hover:shadow-elevated transition-shadow">
+            .map((assignment, index) => (
+              <Card 
+                key={assignment._id} 
+                className="shadow-card hover:shadow-elevated transition-all duration-300 border-l-4 border-l-primary/20"
+                style={{ 
+                  opacity: 0,
+                  animation: `fadeIn 0.5s ease-in-out ${index * 0.1}s forwards`
+                }}
+              >
                 <CardContent className="pt-6">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="font-semibold text-lg">{assignment.issue.title}</h3>
+                      <div className="flex items-center space-x-3 mb-3">
+                        <h3 className="font-semibold text-lg text-primary">{assignment.issue.title}</h3>
                         <Badge className={getStatusBadgeClass(assignment.status)}>
                           {assignment.status === 'pending' ? 'Pending' :
                            assignment.status === 'accepted' ? 'Accepted' :
@@ -388,17 +508,36 @@ const TechnicianDashboard = () => {
                         </Badge>
                       </div>
                       
-                      <p className="text-muted-foreground mb-3 line-clamp-2">
+                      <p className="text-muted-foreground mb-4 line-clamp-2">
                         {assignment.issue.description || 'No description available'}
                       </p>
                       
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>Category: {assignment.issue.category || 'N/A'}</span>
-                        <span>Assigned: {formatDate(assignment.assignedAt)}</span>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-3">
+                        <div className="flex items-center gap-1">
+                          <Wrench className="h-3 w-3" />
+                          <span>{assignment.issue.category || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>{formatDate(assignment.assignedAt)}</span>
+                        </div>
                         {assignment.issue.address && (
-                          <span>Location: {assignment.issue.address.blockNumber || 'N/A'}</span>
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span>Block {assignment.issue.address.blockNumber || 'N/A'}</span>
+                          </div>
                         )}
                       </div>
+
+                      {/* Payment Information */}
+                      {assignment.paymentAmount && assignment.paymentAmount > 0 && (
+                        <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-700">
+                            Payment: ₹{assignment.paymentAmount}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-2">
@@ -409,6 +548,7 @@ const TechnicianDashboard = () => {
                           setSelectedAssignment(assignment);
                           setShowDetailsDialog(true);
                         }}
+                        className="hover:bg-primary hover:text-white transition-colors"
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View Details
@@ -426,9 +566,9 @@ const TechnicianDashboard = () => {
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assignment Details</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-primary">Assignment Details</DialogTitle>
             <DialogDescription>
-              Detailed information about this assignment
+              Detailed information about this assignment and work requirements
             </DialogDescription>
           </DialogHeader>
           
@@ -491,6 +631,15 @@ const TechnicianDashboard = () => {
                       <div className="flex justify-between">
                         <span className="font-medium">Time spent:</span>
                         <span>{selectedAssignment.timeSpent} minutes</span>
+                      </div>
+                    )}
+                    {selectedAssignment.paymentAmount && selectedAssignment.paymentAmount > 0 && (
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200 mt-3">
+                        <span className="font-medium text-green-700">Payment Amount:</span>
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <span className="text-lg font-bold text-green-700">₹{selectedAssignment.paymentAmount}</span>
+                        </div>
                       </div>
                     )}
                   </div>

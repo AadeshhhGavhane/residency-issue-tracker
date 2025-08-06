@@ -33,7 +33,6 @@ interface Issue {
   status: string;
   priority: string;
   category?: string;
-  cost?: number;
   createdAt: string;
   reportedByName?: string;
 }
@@ -200,24 +199,12 @@ const AdminDashboard = () => {
         return acc;
       }, {} as Record<string, number>);
 
-      // Cost analytics
-      const issuesWithCost = issues.filter((issue: Issue) => issue && issue.cost && issue.cost > 0);
-      const totalCost = issuesWithCost.reduce((sum: number, issue: Issue) => sum + (issue.cost || 0), 0);
-      const averageCost = issuesWithCost.length > 0 ? totalCost / issuesWithCost.length : 0;
-      const minCost = issuesWithCost.length > 0 ? Math.min(...issuesWithCost.map((issue: Issue) => issue.cost || 0)) : 0;
-      const maxCost = issuesWithCost.length > 0 ? Math.max(...issuesWithCost.map((issue: Issue) => issue.cost || 0)) : 0;
-
-      // Cost by category
-      const costByCategory = issuesWithCost.reduce((acc: Record<string, { totalCost: number; count: number }>, issue: Issue) => {
-        if (issue && issue.category) {
-          if (!acc[issue.category]) {
-            acc[issue.category] = { totalCost: 0, count: 0 };
-          }
-          acc[issue.category].totalCost += issue.cost || 0;
-          acc[issue.category].count += 1;
-        }
-        return acc;
-      }, {} as Record<string, { totalCost: number; count: number }>);
+      // Payment analytics will come from backend
+      const totalCost = 0;
+      const averageCost = 0;
+      const minCost = 0;
+      const maxCost = 0;
+      const costByCategory = {};
 
       return {
         total,
@@ -233,7 +220,7 @@ const AdminDashboard = () => {
         averageCost,
         minCost,
         maxCost,
-        costCount: issuesWithCost.length,
+        costCount: 0,
         costByCategory
       };
     } catch (error) {
@@ -549,7 +536,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.totalCost', 'Total Cost')}</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.totalPayment', 'Total Payment')}</p>
                 <p className="text-2xl font-bold">₹{analytics.totalCost.toLocaleString()}</p>
               </div>
             </div>
@@ -561,7 +548,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-blue-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.averageCost', 'Average Cost')}</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.averagePayment', 'Average Payment')}</p>
                 <p className="text-2xl font-bold">₹{analytics.averageCost.toFixed(0)}</p>
               </div>
             </div>
@@ -573,7 +560,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-orange-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.minCost', 'Min Cost')}</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.minPayment', 'Min Payment')}</p>
                 <p className="text-2xl font-bold">₹{analytics.minCost}</p>
               </div>
             </div>
@@ -585,7 +572,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-red-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.maxCost', 'Max Cost')}</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.maxPayment', 'Max Payment')}</p>
                 <p className="text-2xl font-bold">₹{analytics.maxCost}</p>
               </div>
             </div>
@@ -697,10 +684,10 @@ const AdminDashboard = () => {
       {/* Cost by Category */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>{getText('dashboard.costByCategory', 'Cost by Category')}</CardTitle>
-          <CardDescription>
-            {getText('dashboard.costByCategoryDesc', 'Total maintenance costs by issue category')}
-          </CardDescription>
+                  <CardTitle>{getText('dashboard.paymentByCategory', 'Payment by Category')}</CardTitle>
+        <CardDescription>
+          {getText('dashboard.paymentByCategoryDesc', 'Total payments by issue category')}
+        </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -721,7 +708,7 @@ const AdminDashboard = () => {
               ))}
             {Object.keys(analytics.costByCategory || {}).length === 0 && (
               <div className="text-center py-4 text-muted-foreground">
-                <p className="text-sm">{getText('dashboard.noCostData', 'No cost data available')}</p>
+                <p className="text-sm">{getText('dashboard.noPaymentData', 'No payment data available')}</p>
               </div>
             )}
           </div>

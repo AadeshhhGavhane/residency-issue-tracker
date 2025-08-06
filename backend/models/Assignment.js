@@ -64,6 +64,12 @@ const assignmentSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'Assignment notes cannot be more than 500 characters']
   },
+  // Payment amount for technician
+  paymentAmount: {
+    type: Number,
+    min: [0, 'Payment amount cannot be negative'],
+    default: 0
+  },
   technicianNotes: {
     type: String,
     trim: true,
@@ -151,6 +157,20 @@ assignmentSchema.index({ status: 1 });
 assignmentSchema.index({ assignedAt: -1 });
 assignmentSchema.index({ estimatedCompletionTime: 1 });
 
+// Composite indexes for common query patterns
+assignmentSchema.index({ assignedTo: 1, status: 1 });
+assignmentSchema.index({ status: 1, assignedAt: -1 });
+assignmentSchema.index({ assignedBy: 1, assignedAt: -1 });
+assignmentSchema.index({ issue: 1, status: 1 });
+
+// Index for payment analytics
+assignmentSchema.index({ paymentAmount: 1, status: 1 });
+assignmentSchema.index({ paymentAmount: 1, assignedAt: -1 });
+
+// Index for technician dashboard queries
+assignmentSchema.index({ assignedTo: 1, status: 1, assignedAt: -1 });
+assignmentSchema.index({ assignedTo: 1, priority: 1, status: 1 });
+
 // Virtual for assignment duration
 assignmentSchema.virtual('duration').get(function() {
   if (!this.actualStartTime || !this.actualCompletionTime) return null;
@@ -223,7 +243,8 @@ assignmentSchema.methods.getSummary = function() {
     estimatedCompletionTime: this.estimatedCompletionTime,
     isOverdue: this.isOverdue(),
     timeSpent: this.timeSpent,
-    qualityRating: this.qualityRating
+    qualityRating: this.qualityRating,
+    paymentAmount: this.paymentAmount
   };
 };
 

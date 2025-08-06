@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,8 @@ import {
   Edit,
   User,
   Calendar,
-  Globe
+  Globe,
+  ChevronDown
 } from 'lucide-react';
 import { RootState, AppDispatch } from '@/store';
 import { 
@@ -43,6 +44,22 @@ import { useTranslation } from 'react-i18next';
 
 const MyIssues = () => {
   const { t, i18n } = useTranslation();
+  
+  // Add CSS animation for fade-in effect
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const { issues, isLoading, selectedIssue, filters } = useSelector((state: RootState) => state.issues);
@@ -61,22 +78,45 @@ const MyIssues = () => {
     technicianId: '',
     estimatedTime: '',
     notes: '',
-    cost: ''
+    paymentAmount: ''
   });
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedIssueForFeedback, setSelectedIssueForFeedback] = useState<any>(null);
   const [translatedIssues, setTranslatedIssues] = useState<{[key: string]: any}>({});
   const [isTranslating, setIsTranslating] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(3);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  
+  // Performance optimization refs
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const translationCache = useRef<Map<string, string>>(new Map());
 
   // Translation function using Google Translate API (you can replace with your preferred service)
   const translateText = async (text: string, targetLang: string) => {
     if (!text || targetLang === 'en') return text;
     
+    // Check cache first
+    const cacheKey = `${text}_${targetLang}`;
+    if (translationCache.current.has(cacheKey)) {
+      return translationCache.current.get(cacheKey);
+    }
+    
     try {
       // Using a free translation service - replace with your preferred API
       const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
       const data = await response.json();
-      return data.responseData.translatedText || text;
+      const translatedText = data.responseData.translatedText || text;
+      
+      // Cache the result
+      translationCache.current.set(cacheKey, translatedText);
+      
+      return translatedText;
     } catch (error) {
       console.error('Translation error:', error);
       return text; // Return original text if translation fails
@@ -164,6 +204,41 @@ const MyIssues = () => {
     return filtered;
   }, [issues, searchTerm, translatedIssues, i18n.language]);
 
+  // Paginated issues for display with performance optimization
+  const paginatedIssues = useMemo(() => {
+    const startIndex = 0;
+    const endIndex = currentPage * itemsPerPage;
+    const paginated = filteredIssues.slice(startIndex, endIndex);
+    
+    // Pre-compute translated issues for better performance
+    if (i18n.language === 'hi') {
+      paginated.forEach(issue => {
+        if (!translatedIssues[issue._id]) {
+          // Pre-translate titles and descriptions for better UX
+          translateText(issue.title, 'hi').then(translatedTitle => {
+            translateText(issue.description, 'hi').then(translatedDescription => {
+              setTranslatedIssues(prev => ({
+                ...prev,
+                [issue._id]: {
+                  title: translatedTitle,
+                  description: translatedDescription
+                }
+              }));
+            });
+          });
+        }
+      });
+    }
+    
+    return paginated;
+  }, [filteredIssues, currentPage, itemsPerPage, i18n.language, translatedIssues]);
+
+  // Update hasMore separately to avoid re-renders
+  useEffect(() => {
+    const endIndex = currentPage * itemsPerPage;
+    setHasMore(endIndex < filteredIssues.length);
+  }, [filteredIssues.length, currentPage, itemsPerPage]);
+
   useEffect(() => {
     dispatch(fetchIssues(filters));
   }, [dispatch, filters]);
@@ -175,10 +250,41 @@ const MyIssues = () => {
     }
   }, [issues, i18n.language]);
 
+  // Optimize translation loading for paginated issues
+  useEffect(() => {
+    if (paginatedIssues.length > 0 && i18n.language === 'hi') {
+      // Only translate the newly loaded issues that haven't been translated
+      const newIssues = paginatedIssues.filter(issue => !translatedIssues[issue._id]);
+      if (newIssues.length > 0) {
+        // Limit concurrent translations to avoid overwhelming the API
+        const batchSize = 3;
+        const batches = [];
+        for (let i = 0; i < newIssues.length; i += batchSize) {
+          batches.push(newIssues.slice(i, i + batchSize));
+        }
+        
+        // Process batches with delay to avoid rate limiting
+        batches.forEach((batch, index) => {
+          setTimeout(() => {
+            translateIssues(batch);
+          }, index * 200); // 200ms delay between batches
+        });
+      }
+    }
+  }, [paginatedIssues, i18n.language]);
+
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    // Also update the Redux filters if you want to keep both in sync
-    dispatch(setFilters({ search: value }));
+    
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Debounce search to avoid excessive API calls
+    searchTimeoutRef.current = setTimeout(() => {
+      dispatch(setFilters({ search: value }));
+    }, 300);
   };
 
   const handleFilterChange = (key: string, value: string) => {
@@ -244,7 +350,7 @@ const MyIssues = () => {
         technicianId: assignmentData.technicianId,
         estimatedCompletionTime: parseInt(assignmentData.estimatedTime),
         assignmentNotes: assignmentData.notes,
-        cost: assignmentData.cost && assignmentData.cost.trim() !== '' ? parseFloat(assignmentData.cost) : undefined
+        paymentAmount: assignmentData.paymentAmount && assignmentData.paymentAmount.trim() !== '' ? parseFloat(assignmentData.paymentAmount) : undefined
       };
       
       await dispatch(assignIssue({
@@ -254,7 +360,7 @@ const MyIssues = () => {
       
       setAssignDialogOpen(false);
       setIssueToAssign(null);
-      setAssignmentData({ technicianId: '', estimatedTime: '', notes: '', cost: '' });
+      setAssignmentData({ technicianId: '', estimatedTime: '', notes: '', paymentAmount: '' });
     } catch (error) {
       console.error('Error assigning issue:', error);
     } finally {
@@ -404,11 +510,107 @@ const MyIssues = () => {
     dispatch(fetchIssues(filters));
   };
 
+  // Load more issues function with performance tracking
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore) return;
+    
+    const startTime = performance.now();
+    setIsLoadingMore(true);
+    
+    // Simulate loading delay for better UX
+    setTimeout(() => {
+      setCurrentPage(prev => prev + 1);
+      setIsLoadingMore(false);
+      
+      const endTime = performance.now();
+      console.log(`Load more performance: ${endTime - startTime}ms`);
+    }, 500);
+  }, [hasMore, isLoadingMore]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px', // Load more when 100px away from bottom
+        threshold: 0.1
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [hasMore, isLoadingMore, loadMore]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setHasMore(true);
+  }, [filters, searchTerm]);
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Memory optimization: Clear old translations periodically
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const currentIssueIds = new Set(paginatedIssues.map(issue => issue._id));
+      setTranslatedIssues(prev => {
+        const cleaned = { ...prev };
+        Object.keys(cleaned).forEach(id => {
+          if (!currentIssueIds.has(id)) {
+            delete cleaned[id];
+          }
+        });
+        return cleaned;
+      });
+    }, 60000); // Clean up every minute
+
+    return () => clearInterval(cleanupInterval);
+  }, [paginatedIssues]);
+
+  // Scroll detection for scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowScrollToTop(scrollTop > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Scroll to top function
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }, []);
+
   const isCommittee = user?.role === 'committee';
   const pageTitle = isCommittee ? getText('navigation.allIssues', 'All Issues') : getText('navigation.myIssues', 'My Issues');
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
@@ -518,41 +720,67 @@ const MyIssues = () => {
 
       {/* Search Results Info */}
       {searchTerm.trim() && (
-        <div className="text-sm text-muted-foreground">
-          {getText('search.showing', 'Showing')} {filteredIssues.length} {getText('search.results', 'results')} {getText('search.for', 'for')} "{searchTerm}"
-          {filteredIssues.length !== issues.length && (
-            <Button 
-              variant="link" 
-              size="sm" 
-              onClick={() => setSearchTerm('')}
-              className="ml-2 p-0 h-auto text-sm"
-            >
-              {getText('search.clearSearch', 'Clear search')}
-            </Button>
-          )}
+        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span>
+              {i18n.language === 'hi' 
+                ? `"${searchTerm}" के लिए ${paginatedIssues.length} में से ${filteredIssues.length} परिणाम दिखा रहा है`
+                : `${getText('search.showing', 'Showing')} ${paginatedIssues.length} ${getText('search.of', 'of')} ${filteredIssues.length} ${getText('search.results', 'results')} ${getText('search.for', 'for')} "${searchTerm}"`
+              }
+            </span>
+            {filteredIssues.length !== issues.length && (
+              <Button 
+                variant="link" 
+                size="sm" 
+                onClick={() => setSearchTerm('')}
+                className="p-0 h-auto text-sm"
+              >
+                {i18n.language === 'hi' ? 'खोज साफ़ करें' : getText('search.clearSearch', 'Clear search')}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
       {/* Issues List */}
       <div className="space-y-4">
-        {isLoading || isTranslating ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="mt-2 text-muted-foreground">
-              {isTranslating ? (i18n.language === 'hi' ? 'अनुवाद हो रहा है...' : 'Translating...') : getText('issues.loadingIssues', 'Loading issues...')}
+        {isLoading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <p className="text-muted-foreground text-lg">
+              {i18n.language === 'hi' ? 'मुद्दे लोड हो रहे हैं...' : 'Loading issues...'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {i18n.language === 'hi' ? 'कृपया प्रतीक्षा करें' : 'Please wait'}
             </p>
           </div>
-        ) : filteredIssues.length === 0 ? (
+        ) : isTranslating ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
+            <p className="text-muted-foreground">
+              {i18n.language === 'hi' ? 'हिंदी में अनुवाद हो रहा है...' : 'Translating to Hindi...'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {i18n.language === 'hi' ? 'कृपया प्रतीक्षा करें' : 'Please wait'}
+            </p>
+          </div>
+        ) : paginatedIssues.length === 0 ? (
           <Card className="shadow-card">
             <CardContent className="text-center py-12">
               <div className="text-muted-foreground">
+                <div className="mb-4">
+                  <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                </div>
                 <h3 className="text-lg font-medium mb-2">
-                  {searchTerm.trim() ? getText('issues.noSearchResults', 'No search results found') : getText('issues.noIssuesFound', 'No issues found')}
-                </h3>
-                <p>
                   {searchTerm.trim() 
-                    ? getText('issues.noIssuesMatchSearch', 'No issues match your search criteria.') 
-                    : getText('issues.noIssuesMatch', 'No issues match your current filters.')
+                    ? (i18n.language === 'hi' ? 'कोई खोज परिणाम नहीं मिला' : getText('issues.noSearchResults', 'No search results found'))
+                    : (i18n.language === 'hi' ? 'कोई मुद्दा नहीं मिला' : getText('issues.noIssuesFound', 'No issues found'))
+                  }
+                </h3>
+                <p className="text-sm">
+                  {searchTerm.trim() 
+                    ? (i18n.language === 'hi' ? 'आपकी खोज मापदंडों से कोई मुद्दा मेल नहीं खाता।' : getText('issues.noIssuesMatchSearch', 'No issues match your search criteria.'))
+                    : (i18n.language === 'hi' ? 'आपके वर्तमान फ़िल्टर से कोई मुद्दा मेल नहीं खाता।' : getText('issues.noIssuesMatch', 'No issues match your current filters.'))
                   }
                 </p>
                 {searchTerm.trim() && (
@@ -562,17 +790,24 @@ const MyIssues = () => {
                     onClick={() => setSearchTerm('')}
                     className="mt-4"
                   >
-                    {getText('search.clearSearch', 'Clear search')}
+                    {i18n.language === 'hi' ? 'खोज साफ़ करें' : getText('search.clearSearch', 'Clear search')}
                   </Button>
                 )}
               </div>
             </CardContent>
           </Card>
         ) : (
-          filteredIssues.map((issue) => {
+          paginatedIssues.map((issue, index) => {
             const translatedIssue = getTranslatedIssue(issue);
             return (
-              <Card key={issue._id} className="shadow-card hover:shadow-elevated transition-shadow">
+              <Card 
+                key={issue._id} 
+                className="shadow-card hover:shadow-elevated transition-all duration-300"
+                style={{ 
+                  opacity: 0,
+                  animation: `fadeIn 0.5s ease-in-out ${index * 0.1}s forwards`
+                }}
+              >
                 <CardContent className="pt-6">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
                     <div className="flex-1">
@@ -599,11 +834,7 @@ const MyIssues = () => {
                         {issue.assignedToName && (
                           <span>{getText('labels.assignedTo', 'Assigned To')}: {issue.assignedToName}</span>
                         )}
-                        {issue.cost && issue.cost > 0 && (
-                          <span className="font-medium text-green-600">
-                            {getText('labels.cost', 'Cost')}: ₹{issue.cost}
-                          </span>
-                        )}
+
                         {(issue.status === 'resolved' || issue.status === 'closed') && issue.rating && (
                           <div className="flex items-center gap-1">
                             <Star className="h-4 w-4 text-yellow-500 fill-current" />
@@ -657,6 +888,61 @@ const MyIssues = () => {
               </Card>
             );
           })
+        )}
+
+        {/* Load More Section */}
+        {hasMore && (
+          <div className="flex justify-center mt-8" ref={loadMoreRef}>
+            {isLoadingMore ? (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-sm">
+                  {i18n.language === 'hi' ? 'अधिक मुद्दे लोड हो रहे हैं...' : 'Loading more issues...'}
+                </span>
+                <div className="w-32 h-1 bg-gray-200 rounded-full">
+                  <div className="h-1 bg-primary rounded-full animate-pulse"></div>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                className="flex items-center gap-2 px-6 py-3"
+              >
+                <ChevronDown className="h-4 w-4" />
+                <span>{i18n.language === 'hi' ? 'और मुद्दे दिखाएं' : 'Load More Issues'}</span>
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Progress indicator */}
+        {paginatedIssues.length > 0 && (
+          <div className="text-center text-sm text-muted-foreground mt-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span>
+                {i18n.language === 'hi' 
+                  ? `${paginatedIssues.length} में से ${filteredIssues.length} मुद्दे दिखाए गए हैं`
+                  : `Showing ${paginatedIssues.length} of ${filteredIssues.length} issues`
+                }
+              </span>
+              {i18n.language === 'hi' && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  अनुवाद कैश्ड
+                </span>
+              )}
+            </div>
+            {hasMore && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(paginatedIssues.length / filteredIssues.length) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -923,18 +1209,18 @@ const MyIssues = () => {
             </div>
             
             <div>
-              <Label htmlFor="cost">{getText('labels.cost', 'Cost')} (₹)</Label>
+              <Label htmlFor="paymentAmount">{getText('labels.paymentAmount', 'Payment Amount')} (₹)</Label>
               <Input
-                id="cost"
+                id="paymentAmount"
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder={getText('placeholders.cost', 'e.g., 500')}
-                value={assignmentData.cost}
-                onChange={(e) => setAssignmentData(prev => ({ ...prev, cost: e.target.value }))}
+                placeholder={getText('placeholders.paymentAmount', 'e.g., 500')}
+                value={assignmentData.paymentAmount}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, paymentAmount: e.target.value }))}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {getText('labels.costDescription', 'Amount to be paid to the technician for this task')}
+                {getText('labels.paymentAmountDescription', 'Amount to be paid to the technician for this task')}
               </p>
             </div>
           </div>
@@ -960,6 +1246,17 @@ const MyIssues = () => {
           technicianName={selectedIssueForFeedback.assignedToName}
           onSuccess={handleFeedbackSuccess}
         />
+      )}
+
+      {/* Scroll to Top Button */}
+      {showScrollToTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 rounded-full w-12 h-12 p-0 shadow-lg bg-primary hover:bg-primary/90"
+          aria-label={i18n.language === 'hi' ? 'ऊपर जाएं' : 'Scroll to top'}
+        >
+          <ChevronDown className="h-5 w-5 rotate-180" />
+        </Button>
       )}
     </div>
   );

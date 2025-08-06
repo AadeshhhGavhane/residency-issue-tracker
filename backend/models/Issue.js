@@ -149,10 +149,6 @@ const issueSchema = new mongoose.Schema({
     type: Number, // in hours
     min: [0, 'Actual time cannot be negative']
   },
-  cost: {
-    type: Number,
-    min: [0, 'Cost cannot be negative']
-  },
   // Internal notes
   internalNotes: {
     type: String,
@@ -200,6 +196,20 @@ issueSchema.index({ reportedBy: 1 });
 issueSchema.index({ assignedTo: 1 });
 issueSchema.index({ createdAt: -1 });
 issueSchema.index({ location: '2dsphere' }); // For geospatial queries
+
+// Composite indexes for common query patterns
+issueSchema.index({ status: 1, createdAt: -1 });
+issueSchema.index({ assignedTo: 1, status: 1 });
+issueSchema.index({ reportedBy: 1, createdAt: -1 });
+issueSchema.index({ category: 1, status: 1 });
+issueSchema.index({ priority: 1, status: 1 });
+
+// Text search index for title and description
+issueSchema.index({ title: 'text', description: 'text' });
+
+// Index for analytics queries
+issueSchema.index({ status: 1, category: 1, createdAt: -1 });
+issueSchema.index({ status: 1, priority: 1, createdAt: -1 });
 
 // Virtual for full category name
 issueSchema.virtual('fullCategory').get(function() {

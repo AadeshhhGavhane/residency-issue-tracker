@@ -4,6 +4,7 @@ const User = require('../models/User');
 const logger = require('../config/logger');
 const { AuditService } = require('../services/auditService');
 const emailService = require('../services/emailService');
+const { clearCache } = require('../middleware/cache');
 const { 
   sendAssignmentAcceptedNotificationWhatsApp,
   sendAssignmentRejectedNotificationWhatsApp,
@@ -48,12 +49,14 @@ const getAssignments = async (req, res) => {
     const limitNum = parseInt(limit);
 
     const assignments = await Assignment.find(filter)
-      .populate('issue', 'title description category priority status')
+      .select('status priority assignedAt estimatedCompletionTime paymentAmount issue assignedTo assignedBy')
+      .populate('issue', 'title description category priority status address')
       .populate('assignedTo', 'name email phoneNumber')
       .populate('assignedBy', 'name email')
       .sort({ assignedAt: -1 })
       .skip(skip)
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean(); // Use lean() for better performance
 
     const total = await Assignment.countDocuments(filter);
 
@@ -194,6 +197,10 @@ const acceptAssignment = async (req, res) => {
 
     await assignment.accept();
 
+    // Clear cache for assignments and issues
+    clearCache('/api/assignments');
+    clearCache('/api/issues');
+
     // Update issue status
     const issue = await Issue.findById(assignment.issue);
     if (!issue) {
@@ -235,36 +242,18 @@ const acceptAssignment = async (req, res) => {
       }
     }
 
-    // Send notification to resident (issue reporter)
-    const resident = await User.findById(issue.reportedBy);
-    if (resident) {
-      try {
-        await emailService.sendAssignmentAcceptedNotification(resident.email, {
-          assignmentId: assignment._id,
-          title: issue.title || 'Issue',
-          technicianName: req.user.name
-        });
-        
-        // Send WhatsApp notification to resident
-        if (resident.phoneNumber && resident.isMobileVerified) {
-          await sendAssignmentAcceptedNotificationWhatsApp(resident.phoneNumber, {
-            assignmentId: assignment._id,
-            title: issue.title || 'Issue',
-            technicianName: req.user.name
-          });
-        }
-      } catch (notificationError) {
-        logger.error('Error sending notification to resident:', notificationError);
-        // Don't fail the assignment acceptance if notification fails
-      }
-    }
+    // Fetch the updated assignment with populated fields
+    const updatedAssignment = await Assignment.findById(assignment._id)
+      .populate('issue', 'title description category priority status address')
+      .populate('assignedTo', 'name email phoneNumber')
+      .populate('assignedBy', 'name email');
 
     logger.info(`Assignment accepted: ${assignment._id} by technician: ${req.user._id}`);
 
     res.json({
       success: true,
       message: 'Assignment accepted successfully',
-      data: { assignment }
+      data: { assignment: updatedAssignment }
     });
 
   } catch (error) {
@@ -386,10 +375,16 @@ const rejectAssignment = async (req, res) => {
 
     logger.info(`Assignment rejected: ${assignment._id} by technician: ${req.user._id}`);
 
+    // Fetch the updated assignment with populated fields
+    const updatedAssignment = await Assignment.findById(assignment._id)
+      .populate('issue', 'title description category priority status address')
+      .populate('assignedTo', 'name email phoneNumber')
+      .populate('assignedBy', 'name email');
+
     res.json({
       success: true,
       message: 'Assignment rejected successfully',
-      data: { assignment }
+      data: { assignment: updatedAssignment }
     });
 
   } catch (error) {
@@ -539,10 +534,16 @@ const completeAssignment = async (req, res) => {
 
     logger.info(`Assignment completed: ${assignment._id} by technician: ${req.user._id}`);
 
+    // Fetch the updated assignment with populated fields
+    const updatedAssignment = await Assignment.findById(assignment._id)
+      .populate('issue', 'title description category priority status address')
+      .populate('assignedTo', 'name email phoneNumber')
+      .populate('assignedBy', 'name email');
+
     res.json({
       success: true,
       message: 'Assignment completed successfully',
-      data: { assignment }
+      data: { assignment: updatedAssignment }
     });
 
   } catch (error) {
@@ -717,10 +718,16 @@ const startWork = async (req, res) => {
 
     logger.info(`Work started on assignment: ${assignment._id} by technician: ${req.user._id}`);
 
+    // Fetch the updated assignment with populated fields
+    const updatedAssignment = await Assignment.findById(assignment._id)
+      .populate('issue', 'title description category priority status address')
+      .populate('assignedTo', 'name email phoneNumber')
+      .populate('assignedBy', 'name email');
+
     res.json({
       success: true,
       message: 'Work started successfully',
-      data: { assignment }
+      data: { assignment: updatedAssignment }
     });
 
   } catch (error) {

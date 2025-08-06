@@ -8,9 +8,11 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const morgan = require('morgan');
+const compression = require('compression');
 const connectDB = require('./config/db');
 const validateEnvironment = require('./config/validateEnv');
 const smartLogging = require('./middleware/logging');
+const { performanceMonitor } = require('./middleware/performance');
 
 // Load environment variables FIRST
 dotenv.config();
@@ -28,6 +30,9 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
+// Compression middleware for better performance
+app.use(compression());
+
 // Security middleware
 app.use(helmet());
 app.use(mongoSanitize());
@@ -44,6 +49,9 @@ const limiter = rateLimit({
   }
 });
 app.use('/api/', limiter);
+
+// Performance monitoring middleware
+app.use(performanceMonitor);
 
 // Smart request logging middleware
 app.use(smartLogging);
