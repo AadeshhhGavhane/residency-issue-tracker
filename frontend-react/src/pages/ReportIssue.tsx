@@ -12,11 +12,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { RootState, AppDispatch } from '@/store';
 import { createIssue } from '@/store/slices/issuesSlice';
+import { useTranslation } from 'react-i18next';
 
 const ReportIssue = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { isLoading, error } = useSelector((state: RootState) => state.issues);
+  const { t } = useTranslation();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -31,35 +33,33 @@ const ReportIssue = () => {
   const [newTag, setNewTag] = useState('');
 
   const categories = [
-    { value: 'sanitation', label: 'Sanitation' },
-    { value: 'security', label: 'Security' },
-    { value: 'water', label: 'Water' },
-    { value: 'electricity', label: 'Electricity' },
-    { value: 'elevator', label: 'Elevator' },
-    { value: 'noise', label: 'Noise' },
-    { value: 'parking', label: 'Parking' },
-    { value: 'maintenance', label: 'Maintenance' },
-    { value: 'cleaning', label: 'Cleaning' },
-    { value: 'pest_control', label: 'Pest Control' },
-    { value: 'landscaping', label: 'Landscaping' },
-    { value: 'fire_safety', label: 'Fire Safety' },
-    { value: 'other', label: 'Other' }
+    { value: 'sanitation', label: t('issues.sanitation') },
+    { value: 'security', label: t('issues.security') },
+    { value: 'water', label: t('issues.water') },
+    { value: 'electricity', label: t('issues.electricity') },
+    { value: 'elevator', label: t('issues.elevator') },
+    { value: 'noise', label: t('issues.noise') },
+    { value: 'parking', label: t('issues.parking') },
+    { value: 'maintenance', label: t('issues.maintenance') },
+    { value: 'cleaning', label: t('issues.cleaning') },
+    { value: 'pest_control', label: t('issues.pest_control') },
+    { value: 'landscaping', label: t('issues.landscaping') },
+    { value: 'fire_safety', label: t('issues.fire_safety') },
+    { value: 'other', label: t('issues.other') }
   ];
-
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate required fields
     if (!formData.title || !formData.description || !formData.category) {
-      alert('Please fill in all required fields');
+      alert(t('reportIssue.validationErrors.fillAllFields'));
       return;
     }
 
     // Validate coordinates
     if (!formData.latitude || !formData.longitude) {
-      alert('Please provide GPS coordinates. Click the GPS button to get your location automatically.');
+      alert(t('reportIssue.validationErrors.provideGPS'));
       return;
     }
     
@@ -125,9 +125,9 @@ const ReportIssue = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">Report an Issue</h1>
+        <h1 className="text-3xl font-bold">{t('reportIssue.title')}</h1>
         <p className="text-muted-foreground">
-          Submit a maintenance request for your society
+          {t('reportIssue.subtitle')}
         </p>
       </div>
 
@@ -141,33 +141,33 @@ const ReportIssue = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Issue Details</CardTitle>
+            <CardTitle>{t('reportIssue.issueDetails')}</CardTitle>
             <CardDescription>
-              Provide detailed information about the issue. Priority will be automatically determined by AI based on the content.
+              {t('reportIssue.issueDetailsDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Issue Title</Label>
+              <Label htmlFor="title">{t('issues.issueTitle')}</Label>
               <Input
                 id="title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="Brief description of the issue"
+                placeholder={t('issues.briefDescription')}
                 required
                 disabled={isLoading}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Detailed Description</Label>
+              <Label htmlFor="description">{t('issues.description')}</Label>
               <Textarea
                 id="description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="Provide detailed information about the issue..."
+                placeholder={t('issues.detailedDescription')}
                 rows={4}
                 required
                 disabled={isLoading}
@@ -176,14 +176,14 @@ const ReportIssue = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>{t('issues.category')}</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                   disabled={isLoading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder={t('issues.selectCategory')} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map(category => (
@@ -194,48 +194,46 @@ const ReportIssue = () => {
                   </SelectContent>
                 </Select>
               </div>
-
-
             </div>
           </CardContent>
         </Card>
 
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Location & Images</CardTitle>
+            <CardTitle>{t('reportIssue.locationImages')}</CardTitle>
             <CardDescription>
-              Help us locate and understand the issue better
+              {t('reportIssue.locationImagesDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="address">Address/Location</Label>
+                <Label htmlFor="address">{t('issues.addressLocation')}</Label>
                 <Input
                   id="address"
                   name="address"
                   value={formData.address}
                   onChange={handleChange}
-                  placeholder="e.g., Block A, Floor 2, Common Area"
+                  placeholder={t('issues.addressLocationPlaceholder')}
                   disabled={isLoading}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>GPS Coordinates</Label>
+                <Label>{t('issues.gpsCoordinates')}</Label>
                 <div className="flex space-x-2">
                   <Input
                     name="latitude"
                     value={formData.latitude}
                     onChange={handleChange}
-                    placeholder="Latitude"
+                    placeholder={t('issues.latitudePlaceholder')}
                     disabled={isLoading}
                   />
                   <Input
                     name="longitude"
                     value={formData.longitude}
                     onChange={handleChange}
-                    placeholder="Longitude"
+                    placeholder={t('issues.longitudePlaceholder')}
                     disabled={isLoading}
                   />
                   <Button
@@ -248,13 +246,13 @@ const ReportIssue = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Click the GPS button to automatically fill coordinates, or enter manually
+                  {t('issues.gpsInstructions')}
                 </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Upload Images/Videos</Label>
+              <Label>{t('issues.uploadImagesVideos')}</Label>
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                 <input
                   type="file"
@@ -271,7 +269,7 @@ const ReportIssue = () => {
                 >
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    Click to upload images or videos
+                    {t('issues.clickToUpload')}
                   </span>
                 </label>
               </div>
@@ -310,9 +308,9 @@ const ReportIssue = () => {
 
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Tags</CardTitle>
+            <CardTitle>{t('issues.tags')}</CardTitle>
             <CardDescription>
-              Add relevant tags to help categorize the issue
+              {t('issues.addRelevantTags')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -320,12 +318,12 @@ const ReportIssue = () => {
               <Input
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                placeholder="Add a tag"
+                placeholder={t('issues.addTag')}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
                 disabled={isLoading}
               />
               <Button type="button" variant="outline" onClick={addTag} disabled={isLoading}>
-                Add
+                {t('common.submit')}
               </Button>
             </div>
 
@@ -353,14 +351,14 @@ const ReportIssue = () => {
             onClick={() => navigate('/dashboard')}
             disabled={isLoading}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             type="submit"
             className="bg-gradient-hero hover:opacity-90"
             disabled={isLoading}
           >
-            {isLoading ? 'Submitting...' : 'Submit Issue'}
+            {isLoading ? t('issues.submittingIssue') : t('issues.submitIssue')}
           </Button>
         </div>
       </form>

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,25 +20,25 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) => {
   const location = useLocation();
+  const { t } = useTranslation();
 
   const getMenuItems = () => {
     const baseItems = [
-      { icon: Home, label: 'Dashboard', path: '/dashboard' },
+      { icon: Home, label: t('navigation.dashboard'), path: '/dashboard' },
     ];
 
     const roleSpecificItems = {
       resident: [
-        { icon: Plus, label: 'Report Issue', path: '/report-issue' },
-        { icon: FileText, label: 'My Issues', path: '/my-issues' },
+        { icon: Plus, label: t('navigation.reportIssue'), path: '/report-issue' },
+        { icon: FileText, label: t('navigation.myIssues'), path: '/my-issues' },
       ],
       committee: [
-        { icon: Plus, label: 'Report Issue', path: '/report-issue' },
-        { icon: FileText, label: 'All Issues', path: '/my-issues' },
-        { icon: BarChart3, label: 'Analytics', path: '/admin-dashboard' },
-        { icon: Users, label: 'Manage Users', path: '/manage-users' },
+        { icon: Plus, label: t('navigation.reportIssue'), path: '/report-issue' },
+        { icon: FileText, label: t('navigation.allIssues'), path: '/my-issues' },
+        { icon: BarChart3, label: t('navigation.analytics'), path: '/admin-dashboard' },
       ],
       technician: [
-        { icon: Wrench, label: 'My Assignments', path: '/technician-dashboard' },
+        { icon: Wrench, label: t('navigation.myAssignments'), path: '/technician-dashboard' },
       ],
     };
 
@@ -99,8 +100,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) => {
 
           {/* Footer */}
           <div className="p-4 border-t border-border">
-            <div className="text-xs text-muted-foreground text-center">
-              Society Tracker v1.0
+            <div className="text-center text-xs text-muted-foreground">
+              {t('common.societyTracker')} v1.0
             </div>
           </div>
         </div>

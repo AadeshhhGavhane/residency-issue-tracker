@@ -1,378 +1,229 @@
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, UserPlus, Upload, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RootState, AppDispatch } from '@/store';
-import { register, clearError } from '@/store/slices/authSlice';
+import { useToast } from '@/hooks/use-toast';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '@/store';
+import { register } from '@/store/slices/authSlice';
+import { useTranslation } from 'react-i18next';
 
 const Register = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
-  
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [responseMessage, setResponseMessage] = useState('');
-  const [profilePicture, setProfilePicture] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: '',
+    phone: '',
     apartmentNumber: '',
     blockNumber: '',
-    phoneNumber: '',
-    specializations: [] as string[],
+    role: 'resident',
+    agreeToTerms: false
   });
-  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      toast({
+        title: t('errors.general'),
+        description: t('errors.passwordsDoNotMatch'),
+        variant: "destructive"
+      });
       return;
     }
 
-    const formDataToSend = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
-      if (key === 'specializations') {
-        // Send each specialization as a separate field
-        if (Array.isArray(value)) {
-          value.forEach((spec: string) => {
-            formDataToSend.append('specializations', spec);
-          });
-        }
+    if (!formData.agreeToTerms) {
+      toast({
+        title: t('errors.general'),
+        description: t('errors.termsNotAccepted'),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('apartmentNumber', formData.apartmentNumber);
+      formDataToSend.append('blockNumber', formData.blockNumber);
+      formDataToSend.append('role', formData.role);
+
+      const result = await dispatch(register(formDataToSend));
+
+      if (result.meta.requestStatus === 'fulfilled') {
+        toast({
+          title: t('auth.registerSuccess'),
+          description: t('messages.accountCreated')
+        });
+        navigate('/verify-email');
       } else {
-        formDataToSend.append(key, value as string);
+        const errorMessage = result.payload && typeof result.payload === 'object' && 'message' in result.payload 
+          ? (result.payload as { message: string }).message 
+          : t('errors.registrationFailed');
+        toast({
+          title: t('errors.general'),
+          description: errorMessage,
+          variant: "destructive"
+        });
       }
-    });
-
-    if (profilePicture) {
-      formDataToSend.append('profilePicture', profilePicture);
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: t('errors.general'),
+        description: t('errors.network'),
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    const result = await dispatch(register(formDataToSend));
-    if (result.meta.requestStatus === 'fulfilled') {
-      setIsSuccess(true);
-      // Capture the response message if available
-      const payload = result.payload as any;
-      if (payload?.message) {
-        setResponseMessage(payload.message);
-      }
-      // Don't redirect immediately, let user see success message and choose to verify mobile
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setProfilePicture(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
-  };
-
-  const handleSpecializationChange = (specialization: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      specializations: checked
-        ? [...prev.specializations, specialization]
-        : prev.specializations.filter(s => s !== specialization)
-    }));
-  };
-
-  const specializations = [
-    'sanitation', 'security', 'water', 'electricity', 'elevator', 'noise', 'parking', 
-    'maintenance', 'cleaning', 'pest_control', 'landscaping', 'fire_safety', 'other'
-  ];
-
-  const specializationLabels = {
-    'sanitation': 'Sanitation',
-    'security': 'Security',
-    'water': 'Water',
-    'electricity': 'Electricity',
-    'elevator': 'Elevator',
-    'noise': 'Noise',
-    'parking': 'Parking',
-    'maintenance': 'Maintenance',
-    'cleaning': 'Cleaning',
-    'pest_control': 'Pest Control',
-    'landscaping': 'Landscaping',
-    'fire_safety': 'Fire Safety',
-    'other': 'Other'
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <Card className="shadow-elevated border-0">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-gradient-hero rounded-full flex items-center justify-center shadow-glow">
-              <UserPlus className="h-8 w-8 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-gradient-hero rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">ST</span>
             </div>
-            <div>
-              <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-              <CardDescription>
-                Join Society Tracker and manage issues efficiently
-              </CardDescription>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">
+            {t('auth.registerTitle')}
+          </CardTitle>
+          <CardDescription className="text-center">
+            {t('auth.registerSubtitle')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">{t('profile.name')}</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder={t('profile.namePlaceholder')}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
             </div>
-          </CardHeader>
-          
-          <CardContent className="space-y-6">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">{t('auth.email')}</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder={t('auth.emailPlaceholder')}
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+            </div>
 
-            {isSuccess && (
-              <Alert className="mb-4">
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Account created successfully! Please check your email to verify your account.
-                  {formData.phoneNumber && (
-                    <div className="mt-2">
-                      <p className="text-sm">
-                        {responseMessage?.includes('trial limits') 
-                          ? 'WhatsApp verification is not available for this phone number due to trial limits. You can verify your mobile number later from your profile page.'
-                          : 'A WhatsApp verification link has also been sent to your mobile number. You can verify your mobile number later from your profile page.'
-                        }
-                      </p>
-                      {!responseMessage?.includes('trial limits') && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="mt-2"
-                          onClick={() => window.location.href = '/mobile-verification'}
-                        >
-                          Verify Mobile Now
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="phone">{t('profile.phone')}</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder={t('profile.phonePlaceholder')}
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                required
+              />
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Profile Picture */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Profile Picture (Optional)</Label>
-                <div className="flex items-center space-x-4">
-                  {previewUrl && (
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                  )}
-                  <div className="flex-1">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="Enter your email"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="Create a password"
-                      required
-                      disabled={isLoading}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm your password"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              {/* Role Selection */}
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="resident">Resident</SelectItem>
-                    <SelectItem value="committee">Committee Member</SelectItem>
-                    <SelectItem value="technician">Technician</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Role-specific fields */}
-              {formData.role === 'resident' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="apartmentNumber">Apartment Number</Label>
-                    <Input
-                      id="apartmentNumber"
-                      name="apartmentNumber"
-                      value={formData.apartmentNumber}
-                      onChange={handleChange}
-                      placeholder="e.g., A-101"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="blockNumber">Block Number</Label>
-                    <Input
-                      id="blockNumber"
-                      name="blockNumber"
-                      value={formData.blockNumber}
-                      onChange={handleChange}
-                      placeholder="e.g., Block A"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Phone Number - For all roles */}
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Label htmlFor="blockNumber">{t('issues.blockNumber')}</Label>
                 <Input
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  placeholder="Enter your phone number"
+                  id="blockNumber"
+                  type="text"
+                  placeholder={t('issues.blockNumberPlaceholder')}
+                  value={formData.blockNumber}
+                  onChange={(e) => setFormData({ ...formData, blockNumber: e.target.value })}
                   required
-                  disabled={isLoading}
                 />
               </div>
-
-              {formData.role === 'technician' && (
-                <div className="space-y-2">
-                  <Label>Specializations</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {specializations.map((spec) => (
-                      <div key={spec} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={spec}
-                          checked={formData.specializations.includes(spec)}
-                          onCheckedChange={(checked) => 
-                            handleSpecializationChange(spec, checked as boolean)
-                          }
-                          disabled={isLoading}
-                        />
-                        <Label htmlFor={spec} className="text-sm">
-                          {specializationLabels[spec as keyof typeof specializationLabels] || spec}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-hero hover:opacity-90 transition-opacity"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-            </form>
-
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Already have an account?{' '}
-                <Link
-                  to="/login"
-                  className="text-primary hover:text-primary-glow font-medium transition-colors"
-                >
-                  Sign in
-                </Link>
-              </p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="apartmentNumber">{t('issues.apartmentNumber')}</Label>
+                <Input
+                  id="apartmentNumber"
+                  type="text"
+                  placeholder={t('issues.apartmentNumberPlaceholder')}
+                  value={formData.apartmentNumber}
+                  onChange={(e) => setFormData({ ...formData, apartmentNumber: e.target.value })}
+                  required
+                />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">{t('auth.password')}</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder={t('auth.passwordPlaceholder')}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder={t('auth.confirmPasswordPlaceholder')}
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="agreeToTerms"
+                checked={formData.agreeToTerms}
+                onCheckedChange={(checked) => 
+                  setFormData({ ...formData, agreeToTerms: checked as boolean })
+                }
+              />
+              <Label htmlFor="agreeToTerms" className="text-sm">
+                {t('auth.agreeToTerms')}
+              </Label>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? t('common.loading') : t('auth.signUp')}
+            </Button>
+          </form>
+          
+          <div className="mt-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              {t('auth.alreadyHaveAccount')}{' '}
+              <Link to="/login" className="text-primary hover:underline">
+                {t('auth.signIn')}
+              </Link>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -9,7 +9,8 @@ import {
   Calendar,
   Activity,
   Star,
-  DollarSign
+  DollarSign,
+  Globe
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,18 +24,121 @@ import IssueWeeklyHeatmap from '@/components/IssueWeeklyHeatmap';
 import MonthlyReport from '@/components/MonthlyReport';
 import RecurringProblemsAlert from '@/components/RecurringProblemsAlert';
 import { feedbackAPI } from '@/services/api';
+import { useTranslation } from 'react-i18next';
+
+interface Issue {
+  _id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  category?: string;
+  cost?: number;
+  createdAt: string;
+  reportedByName?: string;
+}
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { issues, isLoading, error } = useSelector((state: RootState) => state.issues);
   const { user } = useSelector((state: RootState) => state.auth);
+  const { t, i18n } = useTranslation();
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(false);
+  
+  // Translation states using the same approach as Dashboard
+  const [translatedIssues, setTranslatedIssues] = useState<{[key: string]: any}>({});
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  // Translation function using Google Translate API (same as Dashboard)
+  const translateText = async (text: string, targetLang: string) => {
+    if (!text || targetLang === 'en') return text;
+    
+    try {
+      // Using a free translation service - replace with your preferred API
+      const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
+      const data = await response.json();
+      return data.responseData.translatedText || text;
+    } catch (error) {
+      console.error('Translation error:', error);
+      return text; // Return original text if translation fails
+    }
+  };
+
+  // Function to translate all issues when language changes (same as Dashboard)
+  const translateIssues = async (issuesData: any[]) => {
+    if (i18n.language === 'en') {
+      setTranslatedIssues({});
+      return;
+    }
+
+    setIsTranslating(true);
+    const translations: {[key: string]: any} = {};
+
+    for (const issue of issuesData) {
+      try {
+        const [translatedTitle, translatedDescription] = await Promise.all([
+          translateText(issue.title, 'hi'),
+          translateText(issue.description, 'hi')
+        ]);
+
+        translations[issue._id] = {
+          title: translatedTitle,
+          description: translatedDescription
+        };
+      } catch (error) {
+        console.error(`Error translating issue ${issue._id}:`, error);
+        translations[issue._id] = {
+          title: issue.title,
+          description: issue.description
+        };
+      }
+    }
+
+    setTranslatedIssues(translations);
+    setIsTranslating(false);
+  };
+
+  // Language toggle function (same as Dashboard)
+  const toggleLanguage = async () => {
+    const newLang = i18n.language === 'en' ? 'hi' : 'en';
+    i18n.changeLanguage(newLang);
+    
+    // Translate issues when switching to Hindi
+    if (newLang === 'hi' && issues.length > 0) {
+      await translateIssues(issues);
+    }
+  };
+
+  // Helper function to get translated content (same as Dashboard)
+  const getTranslatedIssue = (issue: any) => {
+    if (i18n.language === 'hi' && translatedIssues[issue._id]) {
+      return {
+        ...issue,
+        title: translatedIssues[issue._id].title,
+        description: translatedIssues[issue._id].description
+      };
+    }
+    return issue;
+  };
+
+  // Helper function to get translated text with English fallback (same as Dashboard)
+  const getText = (key: string, fallback: string) => {
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
 
   useEffect(() => {
     console.log('AdminDashboard: Fetching issues...');
     dispatch(fetchIssues({}));
   }, [dispatch]);
+
+  // Translate issues when they are loaded and language is Hindi (same as Dashboard)
+  useEffect(() => {
+    if (issues.length > 0 && i18n.language === 'hi') {
+      translateIssues(issues);
+    }
+  }, [issues, i18n.language]);
 
   useEffect(() => {
     const fetchTechnicianRatings = async () => {
@@ -54,19 +158,9 @@ const AdminDashboard = () => {
     fetchTechnicianRatings();
   }, [user?.role]);
 
-  useEffect(() => {
-    console.log('AdminDashboard: Issues loaded:', issues);
-    console.log('AdminDashboard: User role:', user?.role);
-    console.log('AdminDashboard: Loading state:', isLoading);
-    console.log('AdminDashboard: Error state:', error);
-  }, [issues, user, isLoading, error]);
-
   const getAnalytics = () => {
     try {
-      console.log('AdminDashboard: getAnalytics called with issues:', issues);
-      
       if (!Array.isArray(issues) || !issues) {
-        console.log('AdminDashboard: issues is not an array or is null, returning default values');
         return {
           total: 0,
           pending: 0,
@@ -87,19 +181,19 @@ const AdminDashboard = () => {
       }
 
       const total = issues.length;
-      const pending = issues.filter(issue => issue.status === 'new').length;
-      const inProgress = issues.filter(issue => issue.status === 'in_progress').length;
-      const completed = issues.filter(issue => issue.status === 'resolved' || issue.status === 'closed').length;
-      const assigned = issues.filter(issue => issue.status === 'assigned').length;
+      const pending = issues.filter((issue: Issue) => issue.status === 'new').length;
+      const inProgress = issues.filter((issue: Issue) => issue.status === 'in_progress').length;
+      const completed = issues.filter((issue: Issue) => issue.status === 'resolved' || issue.status === 'closed').length;
+      const assigned = issues.filter((issue: Issue) => issue.status === 'assigned').length;
 
-      const categoryStats = issues.reduce((acc, issue) => {
+      const categoryStats = issues.reduce((acc: Record<string, number>, issue: Issue) => {
         if (issue.category) {
           acc[issue.category] = (acc[issue.category] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
 
-      const priorityStats = issues.reduce((acc, issue) => {
+      const priorityStats = issues.reduce((acc: Record<string, number>, issue: Issue) => {
         if (issue.priority) {
           acc[issue.priority] = (acc[issue.priority] || 0) + 1;
         }
@@ -107,14 +201,14 @@ const AdminDashboard = () => {
       }, {} as Record<string, number>);
 
       // Cost analytics
-      const issuesWithCost = issues.filter(issue => issue && issue.cost && issue.cost > 0);
-      const totalCost = issuesWithCost.reduce((sum, issue) => sum + (issue.cost || 0), 0);
+      const issuesWithCost = issues.filter((issue: Issue) => issue && issue.cost && issue.cost > 0);
+      const totalCost = issuesWithCost.reduce((sum: number, issue: Issue) => sum + (issue.cost || 0), 0);
       const averageCost = issuesWithCost.length > 0 ? totalCost / issuesWithCost.length : 0;
-      const minCost = issuesWithCost.length > 0 ? Math.min(...issuesWithCost.map(issue => issue.cost || 0)) : 0;
-      const maxCost = issuesWithCost.length > 0 ? Math.max(...issuesWithCost.map(issue => issue.cost || 0)) : 0;
+      const minCost = issuesWithCost.length > 0 ? Math.min(...issuesWithCost.map((issue: Issue) => issue.cost || 0)) : 0;
+      const maxCost = issuesWithCost.length > 0 ? Math.max(...issuesWithCost.map((issue: Issue) => issue.cost || 0)) : 0;
 
       // Cost by category
-      const costByCategory = issuesWithCost.reduce((acc, issue) => {
+      const costByCategory = issuesWithCost.reduce((acc: Record<string, { totalCost: number; count: number }>, issue: Issue) => {
         if (issue && issue.category) {
           if (!acc[issue.category]) {
             acc[issue.category] = { totalCost: 0, count: 0 };
@@ -125,7 +219,7 @@ const AdminDashboard = () => {
         return acc;
       }, {} as Record<string, { totalCost: number; count: number }>);
 
-      const result = {
+      return {
         total,
         pending,
         inProgress,
@@ -134,7 +228,7 @@ const AdminDashboard = () => {
         categoryStats,
         priorityStats,
         resolutionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
-        avgResponseTime: '2.5 hours', // Mock data
+        avgResponseTime: '2.5 hours',
         totalCost,
         averageCost,
         minCost,
@@ -142,9 +236,6 @@ const AdminDashboard = () => {
         costCount: issuesWithCost.length,
         costByCategory
       };
-
-      console.log('AdminDashboard: Analytics result:', result);
-      return result;
     } catch (error) {
       console.error('AdminDashboard: Error in getAnalytics:', error);
       return {
@@ -177,13 +268,68 @@ const AdminDashboard = () => {
   const getRecentIssues = () => {
     try {
       if (!Array.isArray(issues) || !issues) return [];
-      const issuesCopy = [...issues].filter(issue => issue && issue.createdAt);
+      const issuesCopy = [...issues].filter((issue: Issue) => issue && issue.createdAt);
       return issuesCopy
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a: Issue, b: Issue) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5);
     } catch (error) {
       console.error('AdminDashboard: Error in getRecentIssues:', error);
       return [];
+    }
+  };
+
+  // Status translation helper (same as Dashboard)
+  const getStatusText = (status: string) => {
+    const statusMap: {[key: string]: string} = {
+      'new': 'New',
+      'assigned': 'Assigned',
+      'in_progress': 'In Progress',
+      'resolved': 'Resolved',
+      'closed': 'Closed'
+    };
+    return getText(`status.${status}`, statusMap[status] || status);
+  };
+
+  // Priority translation helper (same as Dashboard)
+  const getPriorityText = (priority: string) => {
+    const priorityMap: {[key: string]: string} = {
+      'low': 'Low',
+      'medium': 'Medium',
+      'high': 'High',
+      'urgent': 'Urgent'
+    };
+    return getText(`priority.${priority}`, priorityMap[priority] || priority);
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'new':
+        return 'bg-blue-100 text-blue-800';
+      case 'assigned':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'in_progress':
+        return 'bg-orange-100 text-orange-800';
+      case 'resolved':
+        return 'bg-green-100 text-green-800';
+      case 'closed':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityBadgeClass = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-100 text-red-800';
+      case 'high':
+        return 'bg-orange-100 text-orange-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -202,7 +348,6 @@ const AdminDashboard = () => {
         }
       };
 
-      // Create CSV content
       const csvContent = [
         ['Issue Analytics Report'],
         ['Generated At', reportData.generatedAt],
@@ -228,7 +373,7 @@ const AdminDashboard = () => {
         [''],
         ['Recent Issues'],
         ['Title', 'Status', 'Priority', 'Reported By', 'Created At'],
-        ...getRecentIssues().map(issue => [
+        ...getRecentIssues().map((issue: Issue) => [
           issue.title,
           issue.status,
           issue.priority,
@@ -237,7 +382,6 @@ const AdminDashboard = () => {
         ])
       ].map(row => row.join(',')).join('\n');
 
-      // Create and download the file
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -255,98 +399,96 @@ const AdminDashboard = () => {
     }
   };
 
-  // Show error if there's an issue
   if (error) {
     return (
       <div className="text-center py-12">
         <div className="text-red-500 mb-4">
-          <h3 className="text-lg font-medium">Error loading analytics</h3>
+          <h3 className="text-lg font-medium">{getText('errors.general', 'Error loading analytics')}</h3>
           <p className="text-sm">{error}</p>
         </div>
       </div>
     );
   }
 
-  if (isLoading) {
+  if (isLoading || isTranslating) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p className="mt-2 text-muted-foreground">Loading analytics...</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <p className="ml-4 text-muted-foreground">
+          {isTranslating ? (i18n.language === 'hi' ? 'अनुवाद हो रहा है...' : 'Translating...') : getText('common.loading', 'Loading analytics...')}
+        </p>
       </div>
     );
   }
 
-  // Don't render analytics if data is not ready
   if (!issues || !Array.isArray(issues)) {
     return (
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p className="mt-2 text-muted-foreground">Loading data...</p>
+        <p className="mt-2 text-muted-foreground">{getText('common.loading', 'Loading data...')}</p>
       </div>
     );
   }
 
-  // Show message if no issues
   if (!Array.isArray(issues) || issues.length === 0) {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+            <h1 className="text-3xl font-bold">{getText('dashboard.analyticsTitle', 'Analytics Dashboard')}</h1>
             <p className="text-muted-foreground">
-              Overview of society issue management performance
+              {getText('dashboard.analyticsDescription', 'Comprehensive overview of community issues')}
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleLanguage}
+            className="flex items-center gap-2"
+          >
+            <Globe className="h-4 w-4" />
+            {i18n.language === 'en' ? 'हिंदी' : 'English'}
+          </Button>
         </div>
         <div className="text-center py-12">
           <div className="text-muted-foreground">
-            <h3 className="text-lg font-medium">No data available</h3>
-            <p className="text-sm">No issues have been reported yet.</p>
+            <h3 className="text-lg font-medium">{getText('dashboard.noData', 'No Data Available')}</h3>
+            <p className="text-sm">{getText('dashboard.noIssues', 'No issues have been reported yet.')}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  let analytics: any;
-  try {
-    analytics = getAnalytics();
-    console.log('AdminDashboard: Analytics calculated:', analytics);
-  } catch (error) {
-    console.error('AdminDashboard: Error calculating analytics:', error);
-    analytics = {
-      total: 0,
-      pending: 0,
-      inProgress: 0,
-      completed: 0,
-      assigned: 0,
-      categoryStats: {},
-      priorityStats: {},
-      resolutionRate: 0,
-      avgResponseTime: '2.5 hours',
-      totalCost: 0,
-      averageCost: 0,
-      minCost: 0,
-      maxCost: 0,
-      costCount: 0,
-      costByCategory: {}
-    };
-  }
+  const analytics = getAnalytics();
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold">{getText('dashboard.analyticsTitle', 'Analytics Dashboard')}</h1>
           <p className="text-muted-foreground">
-            Overview of society issue management performance
+            {getText('dashboard.analyticsDescription', 'Comprehensive overview of community issues')}
           </p>
         </div>
-        <Button onClick={handleExportReport} variant="outline">
-          <FileText className="h-4 w-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleLanguage}
+            className="flex items-center gap-2"
+            disabled={isTranslating}
+          >
+            <Globe className="h-4 w-4" />
+            {i18n.language === 'en' ? 'हिंदी' : 'English'}
+          </Button>
+          
+          <Button onClick={handleExportReport} variant="outline">
+            <FileText className="h-4 w-4 mr-2" />
+            {getText('dashboard.exportReport', 'Export Report')}
+          </Button>
+        </div>
       </div>
 
       {/* Key Metrics */}
@@ -356,7 +498,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <BarChart3 className="h-5 w-5 text-blue-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Issues</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.totalIssues', 'Total Issues')}</p>
                 <p className="text-2xl font-bold">{analytics.total}</p>
               </div>
             </div>
@@ -368,7 +510,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-yellow-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Pending</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.pendingIssues', 'Pending Issues')}</p>
                 <p className="text-2xl font-bold">{analytics.pending}</p>
               </div>
             </div>
@@ -380,7 +522,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <Activity className="h-5 w-5 text-orange-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">In Progress</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.inProgress', 'In Progress')}</p>
                 <p className="text-2xl font-bold">{analytics.inProgress}</p>
               </div>
             </div>
@@ -392,7 +534,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Completed</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.completedIssues', 'Completed')}</p>
                 <p className="text-2xl font-bold">{analytics.completed}</p>
               </div>
             </div>
@@ -407,7 +549,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Cost</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.totalCost', 'Total Cost')}</p>
                 <p className="text-2xl font-bold">₹{analytics.totalCost.toLocaleString()}</p>
               </div>
             </div>
@@ -419,7 +561,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-blue-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Average Cost</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.averageCost', 'Average Cost')}</p>
                 <p className="text-2xl font-bold">₹{analytics.averageCost.toFixed(0)}</p>
               </div>
             </div>
@@ -431,7 +573,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-orange-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Min Cost</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.minCost', 'Min Cost')}</p>
                 <p className="text-2xl font-bold">₹{analytics.minCost}</p>
               </div>
             </div>
@@ -443,7 +585,7 @@ const AdminDashboard = () => {
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5 text-red-600" />
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Max Cost</p>
+                <p className="text-sm font-medium text-muted-foreground">{getText('dashboard.maxCost', 'Max Cost')}</p>
                 <p className="text-2xl font-bold">₹{analytics.maxCost}</p>
               </div>
             </div>
@@ -455,9 +597,9 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Issue Status Distribution</CardTitle>
+            <CardTitle>{getText('dashboard.statusDistribution', 'Issue Status Distribution')}</CardTitle>
             <CardDescription>
-              Breakdown of issues by status
+              {getText('dashboard.statusBreakdown', 'Breakdown of issues by status')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -465,14 +607,14 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm">Pending</span>
+                  <span className="text-sm">{getText('dashboard.pendingStatus', 'Pending')}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium">{analytics.pending}</span>
                   <div className="w-24 bg-muted rounded-full h-2">
                     <div 
                       className="bg-blue-500 h-2 rounded-full" 
-                      style={{ width: `${(analytics.pending / analytics.total) * 100}%` }}
+                      style={{ width: `${analytics.total > 0 ? (analytics.pending / analytics.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                 </div>
@@ -481,14 +623,14 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                  <span className="text-sm">In Progress</span>
+                  <span className="text-sm">{getText('dashboard.inProgressStatus', 'In Progress')}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium">{analytics.inProgress}</span>
                   <div className="w-24 bg-muted rounded-full h-2">
                     <div 
                       className="bg-orange-500 h-2 rounded-full" 
-                      style={{ width: `${(analytics.inProgress / analytics.total) * 100}%` }}
+                      style={{ width: `${analytics.total > 0 ? (analytics.inProgress / analytics.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                 </div>
@@ -497,14 +639,14 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Completed</span>
+                  <span className="text-sm">{getText('dashboard.completedStatus', 'Completed')}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium">{analytics.completed}</span>
                   <div className="w-24 bg-muted rounded-full h-2">
                     <div 
                       className="bg-green-500 h-2 rounded-full" 
-                      style={{ width: `${(analytics.completed / analytics.total) * 100}%` }}
+                      style={{ width: `${analytics.total > 0 ? (analytics.completed / analytics.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                 </div>
@@ -513,14 +655,14 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-sm">Assigned</span>
+                  <span className="text-sm">{getText('dashboard.assignedStatus', 'Assigned')}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium">{analytics.assigned}</span>
                   <div className="w-24 bg-muted rounded-full h-2">
                     <div 
                       className="bg-red-500 h-2 rounded-full" 
-                      style={{ width: `${(analytics.assigned / analytics.total) * 100}%` }}
+                      style={{ width: `${analytics.total > 0 ? (analytics.assigned / analytics.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                 </div>
@@ -531,9 +673,9 @@ const AdminDashboard = () => {
 
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Top Issue Categories</CardTitle>
+            <CardTitle>{getText('dashboard.topCategories', 'Top Issue Categories')}</CardTitle>
             <CardDescription>
-              Most reported issue types
+              {getText('dashboard.topCategoriesDesc', 'Most reported issue types')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -544,7 +686,7 @@ const AdminDashboard = () => {
                     <span className="text-sm font-medium">#{index + 1}</span>
                     <span className="text-sm capitalize">{category}</span>
                   </div>
-                  <Badge variant="secondary">{count} issues</Badge>
+                  <Badge variant="secondary">{count} {getText('dashboard.issuesLabel', 'issues')}</Badge>
                 </div>
               ))}
             </div>
@@ -555,9 +697,9 @@ const AdminDashboard = () => {
       {/* Cost by Category */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Cost by Category</CardTitle>
+          <CardTitle>{getText('dashboard.costByCategory', 'Cost by Category')}</CardTitle>
           <CardDescription>
-            Total maintenance costs by issue category
+            {getText('dashboard.costByCategoryDesc', 'Total maintenance costs by issue category')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -573,13 +715,13 @@ const AdminDashboard = () => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Badge variant="secondary">₹{(data as any).totalCost.toLocaleString()}</Badge>
-                    <span className="text-xs text-muted-foreground">({(data as any).count} issues)</span>
+                    <span className="text-xs text-muted-foreground">({(data as any).count} {getText('dashboard.issuesLabel', 'issues')})</span>
                   </div>
                 </div>
               ))}
             {Object.keys(analytics.costByCategory || {}).length === 0 && (
               <div className="text-center py-4 text-muted-foreground">
-                <p className="text-sm">No cost data available</p>
+                <p className="text-sm">{getText('dashboard.noCostData', 'No cost data available')}</p>
               </div>
             )}
           </div>
@@ -590,9 +732,9 @@ const AdminDashboard = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Issue Heatmaps</h2>
+            <h2 className="text-2xl font-bold">{getText('dashboard.issueHeatmaps', 'Issue Heatmaps')}</h2>
             <p className="text-muted-foreground">
-              Visual analysis of issue patterns and trends
+              {getText('dashboard.heatmapsDesc', 'Visual analysis of issue patterns and trends')}
             </p>
           </div>
         </div>
@@ -615,31 +757,34 @@ const AdminDashboard = () => {
       {/* Recent Activity */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Recent Issues</CardTitle>
+          <CardTitle>{getText('dashboard.recentIssues', 'Recent Issues')}</CardTitle>
           <CardDescription>
-            Latest reported issues in the society
+            {getText('dashboard.recentIssuesDescription', 'Latest reported issues in the society')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {getRecentIssues().map((issue) => (
-              <div key={issue._id} className="flex items-center space-x-4 p-3 bg-muted rounded-lg">
-                <div className="flex-1">
-                  <p className="font-medium">{issue.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Reported by {issue.reportedByName} • {new Date(issue.createdAt).toLocaleDateString()}
-                  </p>
+            {getRecentIssues().map((issue: Issue) => {
+              const translatedIssue = getTranslatedIssue(issue);
+              return (
+                <div key={issue._id} className="flex items-center space-x-4 p-3 bg-muted rounded-lg">
+                  <div className="flex-1">
+                    <p className="font-medium">{translatedIssue.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {getText('dashboard.reportedBy', 'Reported by')} {issue.reportedByName} • {new Date(issue.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Badge className={getStatusBadgeClass(issue.status)}>
+                      {getStatusText(issue.status)}
+                    </Badge>
+                    <Badge className={getPriorityBadgeClass(issue.priority)}>
+                      {getPriorityText(issue.priority)}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Badge variant="outline" className={`status-${issue.status}`}>
-                    {issue.status.replace('_', ' ')}
-                  </Badge>
-                  <Badge variant="outline" className={`priority-${issue.priority}`}>
-                    {issue.priority}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -649,14 +794,14 @@ const AdminDashboard = () => {
         <div className="space-y-6 mt-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Technician Ratings</h2>
+              <h2 className="text-2xl font-bold">{getText('dashboard.technicianRatings', 'Technician Ratings')}</h2>
               <p className="text-muted-foreground">
-                Monitor technician performance and ratings
+                {getText('dashboard.technicianRatingsDesc', 'Monitor technician performance and ratings')}
               </p>
             </div>
             <Button variant="outline" size="sm">
               <Star className="h-4 w-4 mr-2" />
-              View All Ratings
+              {getText('dashboard.viewAllRatings', 'View All Ratings')}
             </Button>
           </div>
           
