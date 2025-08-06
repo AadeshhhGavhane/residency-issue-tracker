@@ -8,11 +8,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 
+interface Media {
+  type: 'image' | 'video';
+  url: string;
+}
+
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'bot';
   timestamp: Date;
+  media?: Media[];
+}
+
+interface User {
+  id?: string;
+  _id?: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: string;
 }
 
 const ChatWidget = () => {
@@ -64,7 +79,6 @@ const ChatWidget = () => {
         const { latitude, longitude } = position.coords;
         const locationText = `Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
         
-        // Add location to the input value
         setInputValue(prev => {
           const newValue = prev ? `${prev} ${locationText}` : locationText;
           return newValue;
@@ -100,6 +114,41 @@ const ChatWidget = () => {
         maximumAge: 0
       }
     );
+  };
+
+  const addUserDetails = () => {
+    const name = user?.name || 'Unknown User';
+    const email = user?.email || 'N/A';
+    const phoneNumber = user?.phoneNumber || 'N/A';
+    const userDetailsText = `${name} ${email} ${phoneNumber}`;
+    
+    setInputValue(prev => {
+      const newValue = prev ? `${prev} ${userDetailsText}` : userDetailsText;
+      return newValue;
+    });
+  };
+
+  const parseCloudinaryURLs = (text: string): { text: string; media: Media[] } => {
+    const cloudinaryRegex = /https:\/\/res\.cloudinary\.com\/[^\s]+/g;
+    const urls = text.match(cloudinaryRegex) || [];
+    let remainingText = text;
+    const media: Media[] = [];
+
+    urls.forEach(url => {
+      remainingText = remainingText.replace(url, '').trim();
+      const isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(url);
+      const isVideo = /\.(mp4|webm|ogv)$/i.test(url);
+      if (isImage) {
+        media.push({ type: 'image', url });
+      } else if (isVideo) {
+        media.push({ type: 'video', url });
+      }
+    });
+
+    return {
+      text: remainingText || text,
+      media
+    };
   };
 
   const sendMessage = async (message: string) => {
@@ -141,7 +190,7 @@ const ChatWidget = () => {
           userId: user?._id || user?.id,
           userName: user?.name,
           userRole: user?.role,
-          sessionId: user?._id || user?.id || user?.email // Consistent session identifier
+          sessionId: user?._id || user?.id || user?.email
         })
       });
 
@@ -157,22 +206,22 @@ const ChatWidget = () => {
       const data = await response.json();
       console.log('Response data:', data);
       
-      // Handle n8n response format
       let responseText = 'I received your message. How can I help you?';
       
       if (data && Array.isArray(data) && data.length > 0) {
-        // n8n returns array format
         responseText = data[0].output || data[0].response || responseText;
       } else if (data && typeof data === 'object') {
-        // Handle object format
         responseText = data.output || data.response || data.message || responseText;
       }
+
+      const { text, media } = parseCloudinaryURLs(responseText);
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: responseText,
+        text,
         sender: 'bot',
-        timestamp: new Date()
+        timestamp: new Date(),
+        media: media.length > 0 ? media : undefined
       };
 
       setMessages(prev => [...prev, botMessage]);
@@ -265,29 +314,55 @@ const ChatWidget = () => {
                           <li>• Report new maintenance problems</li>
                           <li>• Get updates on ongoing work</li>
                           <li>• Share your location for better assistance</li>
+                          <li>• Share your contact details</li>
                         </ul>
                       </div>
                     )}
                     
                     {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-lg px-3 py-2 break-words ${
-                            message.sender === 'user'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-foreground'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                          <p className="text-xs opacity-70 mt-1">
-                            {formatTime(message.timestamp)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+  <div
+    key={message.id}
+    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+  >
+    <div
+      className={`max-w-xs rounded-lg px-3 py-2 break-words ${
+        message.sender === 'user'
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-muted text-foreground'
+      }`}
+    >
+      {message.text && (
+        <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+      )}
+      {message.media && message.media.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {message.media.map((media, index) => (
+            <div key={`${message.id}-media-${index}`}>
+              {media.type === 'image' ? (
+                <img
+                  src={media.url}
+                  alt="Shared image"
+                  className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
+                />
+              ) : (
+                <video
+                  controls
+                  className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
+                >
+                  <source src={media.url} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-xs opacity-70 mt-1">
+        {formatTime(message.timestamp)}
+      </p>
+    </div>
+  </div>
+))}
                     
                     {isLoading && (
                       <div className="flex justify-start">
@@ -331,6 +406,17 @@ const ChatWidget = () => {
                       title="Share current location"
                     >
                       <MapPin className={`h-4 w-4 ${isGettingLocation ? 'animate-pulse' : ''}`} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addUserDetails}
+                      disabled={isLoading}
+                      className="px-2"
+                      title="Share user details"
+                    >
+                      <User className="h-4 w-4" />
                     </Button>
                     <Button 
                       type="button" 

@@ -42,7 +42,7 @@ const TechnicianDashboard = () => {
   }, [dispatch]);
 
   const getAnalytics = () => {
-    if (!Array.isArray(assignments) || !assignments) {
+    if (!Array.isArray(assignments)) {
       return {
         total: 0,
         pending: 0,
@@ -57,16 +57,26 @@ const TechnicianDashboard = () => {
       };
     }
 
-    const total = assignments.length;
-    const pending = assignments.filter(a => a && a.status === 'pending').length;
-    const accepted = assignments.filter(a => a && a.status === 'accepted').length;
-    const inProgress = assignments.filter(a => a && a.status === 'in_progress').length;
-    const completed = assignments.filter(a => a && a.status === 'completed').length;
-    const rejected = assignments.filter(a => a && a.status === 'rejected').length;
+    // Filter out invalid assignments
+    const validAssignments = assignments.filter(a => a && a.issue && a.issue.title);
+    if (assignments.length !== validAssignments.length) {
+      console.warn('Invalid assignments detected:', {
+        totalAssignments: assignments.length,
+        validAssignments: validAssignments.length,
+        invalidAssignments: assignments.filter(a => !a || !a.issue || !a.issue.title)
+      });
+    }
+
+    const total = validAssignments.length;
+    const pending = validAssignments.filter(a => a.status === 'pending').length;
+    const accepted = validAssignments.filter(a => a.status === 'accepted').length;
+    const inProgress = validAssignments.filter(a => a.status === 'in_progress').length;
+    const completed = validAssignments.filter(a => a.status === 'completed').length;
+    const rejected = validAssignments.filter(a => a.status === 'rejected').length;
 
     // Cost analytics for completed assignments
-    const completedAssignments = assignments.filter(a => a && a.status === 'completed');
-    const assignmentsWithCost = completedAssignments.filter(a => a && a.issue && a.issue.cost && a.issue.cost > 0);
+    const completedAssignments = validAssignments.filter(a => a.status === 'completed');
+    const assignmentsWithCost = completedAssignments.filter(a => a.issue.cost && a.issue.cost > 0);
     const totalEarnings = assignmentsWithCost.reduce((sum, a) => sum + (a.issue?.cost || 0), 0);
     const averageEarnings = assignmentsWithCost.length > 0 ? totalEarnings / assignmentsWithCost.length : 0;
 
@@ -89,7 +99,6 @@ const TechnicianDashboard = () => {
   const handleAcceptAssignment = async (assignmentId: string) => {
     try {
       await dispatch(updateAssignment({ id: assignmentId, action: 'accept' }));
-      // Refresh assignments after successful action
       dispatch(fetchAssignments({}));
     } catch (error) {
       console.error('Error accepting assignment:', error);
@@ -99,7 +108,6 @@ const TechnicianDashboard = () => {
   const handleStartWork = async (assignmentId: string) => {
     try {
       await dispatch(updateAssignment({ id: assignmentId, action: 'start' }));
-      // Refresh assignments after successful action
       dispatch(fetchAssignments({}));
     } catch (error) {
       console.error('Error starting work:', error);
@@ -121,7 +129,6 @@ const TechnicianDashboard = () => {
         setShowCompleteDialog(false);
         setCompletionData({ completionNotes: '', timeSpent: '', materialsUsed: '' });
         setSelectedAssignment(null);
-        // Refresh assignments after successful action
         dispatch(fetchAssignments({}));
       } catch (error) {
         console.error('Error completing assignment:', error);
@@ -133,25 +140,15 @@ const TechnicianDashboard = () => {
     if (selectedAssignment && rejectionReason.trim()) {
       setIsRejecting(true);
       try {
-        console.log('Rejecting assignment:', selectedAssignment._id, 'with reason:', rejectionReason);
-        
-        const result = await dispatch(updateAssignment({
+        await dispatch(updateAssignment({
           id: selectedAssignment._id,
           action: 'reject',
           data: { reason: rejectionReason }
         }));
-        
-        console.log('Rejection result:', result);
-        
         setShowRejectDialog(false);
         setRejectionReason('');
         setSelectedAssignment(null);
-        
-        // Refresh assignments after successful action
         await dispatch(fetchAssignments({}));
-        
-        // Show success message
-        
       } catch (error) {
         console.error('Error rejecting assignment:', error);
         alert('Error rejecting assignment: ' + (error as any).message);
@@ -276,12 +273,10 @@ const TechnicianDashboard = () => {
     );
   }
 
-  // Don't render analytics if data is not ready
-  if (!assignments || !Array.isArray(assignments)) {
+  if (!Array.isArray(assignments)) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p className="mt-2 text-muted-foreground">Loading data...</p>
+        <p className="text-muted-foreground">No assignments available. Please try again later.</p>
       </div>
     );
   }
@@ -359,51 +354,9 @@ const TechnicianDashboard = () => {
         </Card>
       </div>
 
-      {/* Earnings Analytics */}
-      {/*<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">₹{analytics.totalEarnings.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              From {analytics.paidAssignments} paid assignments
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Earnings</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">₹{analytics.averageEarnings.toFixed(0)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Per completed assignment
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paid Assignments</CardTitle>
-            <DollarSign className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{analytics.paidAssignments}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Out of {analytics.completed} completed
-            </p>
-          </CardContent>
-        </Card>
-      </div>*/}
-
       {/* Assignments List */}
       <div className="space-y-4">
-        {assignments.length === 0 ? (
+        {analytics.total === 0 ? (
           <Card className="shadow-card">
             <CardContent className="text-center py-12">
               <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -414,56 +367,58 @@ const TechnicianDashboard = () => {
             </CardContent>
           </Card>
         ) : (
-          assignments.map((assignment) => (
-            <Card key={assignment._id} className="shadow-card hover:shadow-elevated transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-lg">{assignment.issue.title}</h3>
-                      <Badge className={getStatusBadgeClass(assignment.status)}>
-                        {assignment.status === 'pending' ? 'Pending' :
-                         assignment.status === 'accepted' ? 'Accepted' :
-                         assignment.status === 'in_progress' ? 'In Progress' :
-                         assignment.status === 'completed' ? 'Completed' :
-                         assignment.status === 'rejected' ? 'Rejected' : assignment.status}
-                      </Badge>
-                      <Badge className={getPriorityBadgeClass(assignment.issue.priority)}>
-                        {assignment.issue.priority}
-                      </Badge>
+          assignments
+            .filter(assignment => assignment && assignment.issue && assignment.issue.title) // Filter invalid assignments
+            .map((assignment) => (
+              <Card key={assignment._id} className="shadow-card hover:shadow-elevated transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="font-semibold text-lg">{assignment.issue.title}</h3>
+                        <Badge className={getStatusBadgeClass(assignment.status)}>
+                          {assignment.status === 'pending' ? 'Pending' :
+                           assignment.status === 'accepted' ? 'Accepted' :
+                           assignment.status === 'in_progress' ? 'In Progress' :
+                           assignment.status === 'completed' ? 'Completed' :
+                           assignment.status === 'rejected' ? 'Rejected' : assignment.status}
+                        </Badge>
+                        <Badge className={getPriorityBadgeClass(assignment.issue.priority)}>
+                          {assignment.issue.priority}
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-muted-foreground mb-3 line-clamp-2">
+                        {assignment.issue.description || 'No description available'}
+                      </p>
+                      
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>Category: {assignment.issue.category || 'N/A'}</span>
+                        <span>Assigned: {formatDate(assignment.assignedAt)}</span>
+                        {assignment.issue.address && (
+                          <span>Location: {assignment.issue.address.blockNumber || 'N/A'}</span>
+                        )}
+                      </div>
                     </div>
-                    
-                    <p className="text-muted-foreground mb-3 line-clamp-2">
-                      {assignment.issue.description}
-                    </p>
-                    
-                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                      <span>Category: {assignment.issue.category}</span>
-                      <span>Assigned: {formatDate(assignment.assignedAt)}</span>
-                      {assignment.issue.address && (
-                        <span>Location: {assignment.issue.address.blockNumber || 'N/A'}</span>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedAssignment(assignment);
-                        setShowDetailsDialog(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Details
-                    </Button>
-                    {getActionButton(assignment)}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedAssignment(assignment);
+                          setShowDetailsDialog(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Details
+                      </Button>
+                      {getActionButton(assignment)}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            ))
         )}
       </div>
 
@@ -477,7 +432,7 @@ const TechnicianDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           
-          {selectedAssignment && (
+          {selectedAssignment && selectedAssignment.issue && (
             <div className="space-y-6">
               {/* Issue Information */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -490,11 +445,11 @@ const TechnicianDashboard = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Description:</span>
-                      <span className="text-right">{selectedAssignment.issue.description}</span>
+                      <span className="text-right">{selectedAssignment.issue.description || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Category:</span>
-                      <span>{selectedAssignment.issue.category}</span>
+                      <span>{selectedAssignment.issue.category || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Priority:</span>

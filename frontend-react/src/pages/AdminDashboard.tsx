@@ -799,10 +799,7 @@ const AdminDashboard = () => {
                 {getText('dashboard.technicianRatingsDesc', 'Monitor technician performance and ratings')}
               </p>
             </div>
-            <Button variant="outline" size="sm">
-              <Star className="h-4 w-4 mr-2" />
-              {getText('dashboard.viewAllRatings', 'View All Ratings')}
-            </Button>
+            
           </div>
           
           <TechnicianRatings 

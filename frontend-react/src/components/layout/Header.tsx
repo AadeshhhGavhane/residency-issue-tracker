@@ -28,34 +28,6 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { t } = useTranslation();
 
   // Demo notifications with translations
-  const notifications = [
-    {
-      id: 1,
-      type: 'success',
-      title: t('notifications.issueResolved'),
-      message: t('notifications.waterLeakageFixed'),
-      time: t('notifications.twoHoursAgo'),
-      icon: CheckCircle
-    },
-    {
-      id: 2,
-      type: 'warning',
-      title: t('notifications.newIssueReported'),
-      message: t('notifications.electricalProblemReported'),
-      time: t('notifications.fourHoursAgo'),
-      icon: AlertTriangle
-    },
-    {
-      id: 3,
-      type: 'info',
-      title: t('notifications.systemUpdate'),
-      message: t('notifications.newFeaturesAvailable'),
-      time: t('notifications.oneDayAgo'),
-      icon: Info
-    }
-  ];
-
-  const unreadCount = notifications.length;
 
   const handleLogout = async () => {
     try {
@@ -148,45 +120,11 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             {/* Language Switcher */}
             <LanguageSwitcher />
             
-            {/* Chat Widget */}
-            <ChatWidget />
+            {/* Conditionally render ChatWidget for non-committee and non-technician roles */}
+            {user?.role !== 'committee' && user?.role !== 'technician' && <ChatWidget />}
             
             {/* Notifications */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative">
-                  
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <div className="p-2">
-                  <h4 className="font-medium mb-2">Notifications</h4>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {notifications.map((notification) => {
-                      const Icon = getNotificationIcon(notification.type);
-                      return (
-                        <div
-                          key={notification.id}
-                          className="flex items-start space-x-3 p-2 rounded-lg hover:bg-muted transition-colors"
-                        >
-                          <Icon className={`h-4 w-4 mt-0.5 ${getNotificationColor(notification.type)}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{notification.title}</p>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {notification.time}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            
 
             {/* User menu */}
             <DropdownMenu>

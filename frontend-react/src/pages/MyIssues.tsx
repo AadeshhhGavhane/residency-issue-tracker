@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -140,6 +140,30 @@ const MyIssues = () => {
     return issue;
   };
 
+  // Filter and search issues
+  const filteredIssues = useMemo(() => {
+    let filtered = [...issues];
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(issue => {
+        const translatedIssue = getTranslatedIssue(issue);
+        return (
+          translatedIssue.title.toLowerCase().includes(searchLower) ||
+          translatedIssue.description.toLowerCase().includes(searchLower) ||
+          issue.category.toLowerCase().includes(searchLower) ||
+          issue.status.toLowerCase().includes(searchLower) ||
+          issue.priority.toLowerCase().includes(searchLower) ||
+          (issue.reportedByName && issue.reportedByName.toLowerCase().includes(searchLower)) ||
+          (issue.assignedToName && issue.assignedToName.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filtered;
+  }, [issues, searchTerm, translatedIssues, i18n.language]);
+
   useEffect(() => {
     dispatch(fetchIssues(filters));
   }, [dispatch, filters]);
@@ -152,6 +176,8 @@ const MyIssues = () => {
   }, [issues, i18n.language]);
 
   const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    // Also update the Redux filters if you want to keep both in sync
     dispatch(setFilters({ search: value }));
   };
 
@@ -490,6 +516,23 @@ const MyIssues = () => {
         </CardContent>
       </Card>
 
+      {/* Search Results Info */}
+      {searchTerm.trim() && (
+        <div className="text-sm text-muted-foreground">
+          {getText('search.showing', 'Showing')} {filteredIssues.length} {getText('search.results', 'results')} {getText('search.for', 'for')} "{searchTerm}"
+          {filteredIssues.length !== issues.length && (
+            <Button 
+              variant="link" 
+              size="sm" 
+              onClick={() => setSearchTerm('')}
+              className="ml-2 p-0 h-auto text-sm"
+            >
+              {getText('search.clearSearch', 'Clear search')}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Issues List */}
       <div className="space-y-4">
         {isLoading || isTranslating ? (
@@ -499,17 +542,34 @@ const MyIssues = () => {
               {isTranslating ? (i18n.language === 'hi' ? 'अनुवाद हो रहा है...' : 'Translating...') : getText('issues.loadingIssues', 'Loading issues...')}
             </p>
           </div>
-        ) : issues.length === 0 ? (
+        ) : filteredIssues.length === 0 ? (
           <Card className="shadow-card">
             <CardContent className="text-center py-12">
               <div className="text-muted-foreground">
-                <h3 className="text-lg font-medium mb-2">{getText('issues.noIssuesFound', 'No issues found')}</h3>
-                <p>{getText('issues.noIssuesMatch', 'No issues match your current filters.')}</p>
+                <h3 className="text-lg font-medium mb-2">
+                  {searchTerm.trim() ? getText('issues.noSearchResults', 'No search results found') : getText('issues.noIssuesFound', 'No issues found')}
+                </h3>
+                <p>
+                  {searchTerm.trim() 
+                    ? getText('issues.noIssuesMatchSearch', 'No issues match your search criteria.') 
+                    : getText('issues.noIssuesMatch', 'No issues match your current filters.')
+                  }
+                </p>
+                {searchTerm.trim() && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSearchTerm('')}
+                    className="mt-4"
+                  >
+                    {getText('search.clearSearch', 'Clear search')}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         ) : (
-          issues.map((issue) => {
+          filteredIssues.map((issue) => {
             const translatedIssue = getTranslatedIssue(issue);
             return (
               <Card key={issue._id} className="shadow-card hover:shadow-elevated transition-shadow">
@@ -530,73 +590,73 @@ const MyIssues = () => {
                         {translatedIssue.description}
                       </p>
                     
-                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-  <span>{getText('labels.category', 'Category')}: {getCategoryText(issue.category)}</span>
-  <span>{getText('labels.reported', 'Reported')}: {formatDate(issue.createdAt)}</span>
-  {isCommittee && (
-    <span>{getText('labels.reportedBy', 'Reported By')}: {issue.reportedByName}</span>
-  )}
-  {issue.assignedToName && (
-    <span>{getText('labels.assignedTo', 'Assigned To')}: {issue.assignedToName}</span>
-  )}
-  {issue.cost && issue.cost > 0 && (
-    <span className="font-medium text-green-600">
-      {getText('labels.cost', 'Cost')}: ₹{issue.cost}
-    </span>
-  )}
-  {(issue.status === 'resolved' || issue.status === 'closed') && issue.rating && (
-    <div className="flex items-center gap-1">
-      <Star className="h-4 w-4 text-yellow-500 fill-current" />
-      <span className="font-medium text-yellow-600">{issue.rating}/5</span>
-      {issue.ratingComment && (
-        <span className="text-xs text-gray-500 ml-2">
-          "{issue.ratingComment.substring(0, 30)}{issue.ratingComment.length > 30 ? '...' : ''}"
-        </span>
-      )}
-    </div>
-  )}
-</div>
-                  </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>{getText('labels.category', 'Category')}: {getCategoryText(issue.category)}</span>
+                        <span>{getText('labels.reported', 'Reported')}: {formatDate(issue.createdAt)}</span>
+                        {isCommittee && (
+                          <span>{getText('labels.reportedBy', 'Reported By')}: {issue.reportedByName}</span>
+                        )}
+                        {issue.assignedToName && (
+                          <span>{getText('labels.assignedTo', 'Assigned To')}: {issue.assignedToName}</span>
+                        )}
+                        {issue.cost && issue.cost > 0 && (
+                          <span className="font-medium text-green-600">
+                            {getText('labels.cost', 'Cost')}: ₹{issue.cost}
+                          </span>
+                        )}
+                        {(issue.status === 'resolved' || issue.status === 'closed') && issue.rating && (
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                            <span className="font-medium text-yellow-600">{issue.rating}/5</span>
+                            {issue.ratingComment && (
+                              <span className="text-xs text-gray-500 ml-2">
+                                "{issue.ratingComment.substring(0, 30)}{issue.ratingComment.length > 30 ? '...' : ''}"
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewIssue(issue)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      {getText('buttons.view', 'View')}
-                    </Button>
-                    
-                    {isCommittee && issue.status === 'new' && (
+                    <div className="flex space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleAssignIssue(issue)}
-                        disabled={loadingButtons[`assign-${issue._id}`]}
+                        onClick={() => handleViewIssue(issue)}
                       >
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        {getText('buttons.assign', 'Assign')}
-                        {loadingButtons[`assign-${issue._id}`] && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        <Eye className="h-4 w-4 mr-1" />
+                        {getText('buttons.view', 'View')}
                       </Button>
-                    )}
-                    {(issue.status === 'resolved' || issue.status === 'closed') && !issue.rating && (
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={() => handleFeedbackClick(issue)}
-    className="text-yellow-600 hover:text-yellow-700 border-yellow-600 hover:border-yellow-700"
-  >
-    <Star className="h-4 w-4 mr-1" />
-    {getText('buttons.rate', 'Rate')}
-  </Button>
-)}
+                      
+                      {isCommittee && issue.status === 'new' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAssignIssue(issue)}
+                          disabled={loadingButtons[`assign-${issue._id}`]}
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          {getText('buttons.assign', 'Assign')}
+                          {loadingButtons[`assign-${issue._id}`] && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        </Button>
+                      )}
+                      {(issue.status === 'resolved' || issue.status === 'closed') && !issue.rating && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleFeedbackClick(issue)}
+                          className="text-yellow-600 hover:text-yellow-700 border-yellow-600 hover:border-yellow-700"
+                        >
+                          <Star className="h-4 w-4 mr-1" />
+                          {getText('buttons.rate', 'Rate')}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
