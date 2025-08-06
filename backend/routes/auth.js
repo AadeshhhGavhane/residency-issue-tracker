@@ -12,6 +12,7 @@ const {
   login,
   logout,
   getMe,
+  getToken,
   verifyEmail,
   resendVerification,
   forgotPassword,
@@ -245,6 +246,57 @@ router.get('/logout', protect, logout);
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/me', protect, getMe);
+
+/**
+ * @swagger
+ * /api/auth/token:
+ *   get:
+ *     summary: Get JWT token for external services
+ *     description: Retrieve a fresh JWT token for external service authentication
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: JWT token retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token
+ *                     userId:
+ *                       type: string
+ *                       description: User ID
+ *                     userName:
+ *                       type: string
+ *                       description: User name
+ *                     userRole:
+ *                       type: string
+ *                       description: User role
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/token', protect, getToken);
 
 /**
  * @swagger

@@ -2,7 +2,8 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authAPI } from '@/services/api';
 
 export interface User {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   email: string;
   role: 'resident' | 'committee' | 'technician';

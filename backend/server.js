@@ -69,6 +69,7 @@ const assignmentRoutes = require('./routes/assignments');
 const feedbackRoutes = require('./routes/feedback');
 const recurringAlertRoutes = require('./routes/recurringAlerts');
 const translationRoutes = require('./routes/translation');
+const chatRoutes = require('./routes/chat');
 const RecurringAlertService = require('./services/recurringAlertService');
 
 // Import middleware
@@ -111,6 +112,7 @@ app.use('/api/assignments', detectLanguage, translateResponse, assignmentRoutes)
 app.use('/api/feedback', detectLanguage, translateResponse, feedbackRoutes);
 app.use('/api/recurring-alerts', detectLanguage, translateResponse, recurringAlertRoutes);
 app.use('/api/translate', detectLanguage, translateResponse, translationRoutes);
+app.use('/api/chat', detectLanguage, translateResponse, chatRoutes);
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {

@@ -369,6 +369,32 @@ const getMe = async (req, res) => {
   }
 };
 
+// @desc    Get JWT token for external services
+// @route   GET /api/auth/token
+// @access  Private
+const getToken = async (req, res) => {
+  try {
+    // Generate a new token for external services
+    const token = generateToken(req.user._id);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        token: token,
+        userId: req.user._id,
+        userName: req.user.name,
+        userRole: req.user.role
+      }
+    });
+  } catch (error) {
+    console.error('Get token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 // @desc    Verify email
 // @route   POST /api/auth/verify-email
 // @access  Public
@@ -841,6 +867,7 @@ module.exports = {
   login,
   logout,
   getMe,
+  getToken,
   verifyEmail,
   resendVerification,
   forgotPassword,

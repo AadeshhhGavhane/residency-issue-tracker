@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { RootState, AppDispatch } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import ChatWidget from '@/components/ChatWidget';
 import { useTranslation } from 'react-i18next';
 
 interface HeaderProps {
@@ -146,6 +147,9 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <div className="flex items-center space-x-4">
             {/* Language Switcher */}
             <LanguageSwitcher />
+            
+            {/* Chat Widget */}
+            <ChatWidget />
             
             {/* Notifications */}
             <DropdownMenu>
