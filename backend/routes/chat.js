@@ -70,7 +70,7 @@ router.post('/webhook', protect, async (req, res) => {
     });
 
     // Forward request to n8n webhook
-    const n8nResponse = await axios.post('http://localhost:5678/webhook-test/chat-assistant', {
+    const n8nResponse = await axios.post('http://localhost:5678/webhook/chat-assistant', {
       message,
       userId,
       userName,

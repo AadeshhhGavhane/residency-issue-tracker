@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, ChevronUp, ChevronDown } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ const FloatingChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useSelector((state: RootState) => state.auth);
 
@@ -39,6 +40,57 @@ const FloatingChat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    setIsGettingLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const locationText = `Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        
+        // Add location to the input value
+        setInputValue(prev => {
+          const newValue = prev ? `${prev} ${locationText}` : locationText;
+          return newValue;
+        });
+        
+        setIsGettingLocation(false);
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        let errorMessage = 'Unable to get location. ';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Location access denied by user.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out.';
+            break;
+          default:
+            errorMessage += 'An unknown error occurred.';
+            break;
+        }
+        
+        alert(errorMessage);
+        setIsGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
 
   const sendMessage = async (message: string) => {
     if (!message.trim()) return;
@@ -159,6 +211,7 @@ const FloatingChat = () => {
                         <li>• Check the status of your issues</li>
                         <li>• Report new maintenance problems</li>
                         <li>• Get updates on ongoing work</li>
+                        <li>• Share your location for better assistance</li>
                       </ul>
                     </div>
                   )}
@@ -209,6 +262,17 @@ const FloatingChat = () => {
                     disabled={isLoading}
                     className="flex-1"
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={getCurrentLocation}
+                    disabled={isLoading || isGettingLocation}
+                    className="px-2"
+                    title="Share current location"
+                  >
+                    <MapPin className={`h-4 w-4 ${isGettingLocation ? 'animate-pulse' : ''}`} />
+                  </Button>
                   <Button 
                     type="submit" 
                     size="sm"
@@ -217,6 +281,11 @@ const FloatingChat = () => {
                     <Send className="h-4 w-4" />
                   </Button>
                 </form>
+                {isGettingLocation && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Getting your location...
+                  </p>
+                )}
               </div>
             </CardContent>
           )}
@@ -238,4 +307,4 @@ const FloatingChat = () => {
   );
 };
 
-export default FloatingChat; 
+export default FloatingChat;

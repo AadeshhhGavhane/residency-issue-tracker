@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  Home, 
-  FileText, 
-  Plus, 
-  BarChart3, 
-  Wrench, 
-  Users, 
-  X
+  Home,
+  FileText,
+  Plus,
+  BarChart3,
+  Wrench,
+  Users,
+  X 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,9 +23,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) => {
   const { t } = useTranslation();
 
   const getMenuItems = () => {
-    const baseItems = [
-      { icon: Home, label: t('navigation.dashboard'), path: '/dashboard' },
-    ];
+    // Only add dashboard for non-technician users
+    const baseItems = userRole !== 'technician' 
+      ? [{ icon: Home, label: t('navigation.dashboard'), path: '/dashboard' }]
+      : [];
 
     const roleSpecificItems = {
       resident: [

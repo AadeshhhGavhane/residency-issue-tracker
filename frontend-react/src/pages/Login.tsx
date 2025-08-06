@@ -38,7 +38,15 @@ const Login = () => {
           title: t('auth.loginSuccess'),
           description: t('messages.welcomeBack')
         });
-        navigate('/dashboard');
+        
+        // Check user role and redirect accordingly
+        const userRole = result.payload?.user?.role || result.payload?.role;
+        
+        if (userRole === 'technician') {
+          navigate('/technician-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         toast({
           title: t('errors.general'),
