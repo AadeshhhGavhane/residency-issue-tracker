@@ -25,12 +25,16 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
   onSuccess
 }) => {
   const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async () => {
+    console.log('handleSubmit called', { rating, issueId, comment });
+    
     if (rating === 0) {
+      console.log('Rating is 0, showing error');
       toast({
         title: "Rating Required",
         description: "Please provide a rating before submitting feedback.",
@@ -39,21 +43,33 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
       return;
     }
 
+    console.log('Starting submission...');
     setIsSubmitting(true);
+    
     try {
+      console.log('Calling feedbackAPI.submitFeedback with:', {
+        issueId,
+        rating,
+        comment: comment.trim()
+      });
+      
       const data = await feedbackAPI.submitFeedback({
         issueId,
         rating,
         comment: comment.trim()
       });
+      
+      console.log('API response:', data);
 
       toast({
         title: "Feedback Submitted",
         description: "Thank you for your feedback!",
       });
+      
       onClose();
       // Reset form
       setRating(0);
+      setHoverRating(0);
       setComment('');
       // Call success callback to refresh data
       if (onSuccess) {
@@ -61,12 +77,19 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
       }
     } catch (error) {
       console.error('Error submitting feedback:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
       toast({
         title: "Error",
         description: "Failed to submit feedback. Please try again.",
         variant: "destructive"
       });
     } finally {
+      console.log('Submission finished');
       setIsSubmitting(false);
     }
   };
@@ -75,8 +98,21 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
     if (!isSubmitting) {
       onClose();
       setRating(0);
+      setHoverRating(0);
       setComment('');
     }
+  };
+
+  const handleStarClick = (starValue: number) => {
+    setRating(starValue);
+  };
+
+  const handleStarHover = (starValue: number) => {
+    setHoverRating(starValue);
+  };
+
+  const handleStarLeave = () => {
+    setHoverRating(0);
   };
 
   return (
@@ -114,16 +150,34 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
           </div>
 
           {/* Rating */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label className="text-sm font-medium">Your Rating</Label>
-            <div className="flex items-center gap-4">
-              {/* StarRating component was removed, so this section is now static */}
-              {rating > 0 && (
-                <span className="text-sm text-gray-600">
-                  {rating} out of 5 stars
-                </span>
-              )}
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  className="focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                  onClick={() => handleStarClick(star)}
+                  onMouseEnter={() => handleStarHover(star)}
+                  onMouseLeave={handleStarLeave}
+                  disabled={isSubmitting}
+                >
+                  <Star
+                    className={`h-8 w-8 transition-colors ${
+                      star <= (hoverRating || rating)
+                        ? 'text-yellow-400 fill-yellow-400'
+                        : 'text-gray-300 hover:text-yellow-300'
+                    }`}
+                  />
+                </button>
+              ))}
             </div>
+            {rating > 0 && (
+              <p className="text-sm text-gray-600">
+                {rating} out of 5 stars
+              </p>
+            )}
           </div>
 
           {/* Comment */}
@@ -138,6 +192,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
               onChange={(e) => setComment(e.target.value)}
               rows={4}
               maxLength={500}
+              disabled={isSubmitting}
             />
             <p className="text-xs text-gray-500">
               {comment.length}/500 characters
@@ -160,7 +215,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Submitting...
                 </>
               ) : (
@@ -177,4 +232,4 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({
   );
 };
 
-export default FeedbackModal; 
+export default FeedbackModal;

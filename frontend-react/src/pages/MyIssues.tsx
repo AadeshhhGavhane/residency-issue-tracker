@@ -580,41 +580,17 @@ const MyIssues = () => {
                         {loadingButtons[`assign-${issue._id}`] && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                       </Button>
                     )}
-                    
-                    {!isCommittee && issue.status === 'new' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        {getText('buttons.edit', 'Edit')}
-                      </Button>
-                    )}
-                    
-                    {issue.status === 'new' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteIssue(issue)}
-                        disabled={loadingButtons[`delete-${issue._id}`]}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        {getText('buttons.delete', 'Delete')}
-                        {loadingButtons[`delete-${issue._id}`] && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                      </Button>
-                    )}
-                    
-                    {!isCommittee && (issue.status === 'resolved' || issue.status === 'closed') && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleFeedbackClick(issue)}
-                        className="text-yellow-600 hover:text-yellow-700 border-yellow-600 hover:border-yellow-700"
-                      >
-                        <Star className="h-4 w-4 mr-1" />
-                        {getText('buttons.rate', 'Rate')}
-                      </Button>
-                    )}
+                    {(issue.status === 'resolved' || issue.status === 'closed') && !issue.rating && (
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => handleFeedbackClick(issue)}
+    className="text-yellow-600 hover:text-yellow-700 border-yellow-600 hover:border-yellow-700"
+  >
+    <Star className="h-4 w-4 mr-1" />
+    {getText('buttons.rate', 'Rate')}
+  </Button>
+)}
                   </div>
                 </div>
               </CardContent>

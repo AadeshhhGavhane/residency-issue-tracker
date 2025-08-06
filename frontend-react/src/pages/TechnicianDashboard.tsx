@@ -360,7 +360,7 @@ const TechnicianDashboard = () => {
       </div>
 
       {/* Earnings Analytics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/*<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
@@ -399,7 +399,7 @@ const TechnicianDashboard = () => {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </div>*/}
 
       {/* Assignments List */}
       <div className="space-y-4">

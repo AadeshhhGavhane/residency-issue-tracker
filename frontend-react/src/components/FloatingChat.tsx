@@ -161,7 +161,7 @@ const FloatingChat = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-4 right-4 z-[60]">
       {isOpen ? (
         <Card className="w-80 h-96 shadow-2xl border-border">
           <CardHeader className="flex-shrink-0 border-b border-border pb-3">

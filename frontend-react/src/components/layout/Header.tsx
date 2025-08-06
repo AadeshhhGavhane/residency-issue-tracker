@@ -117,7 +117,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="bg-card border-b border-border shadow-card sticky top-0 z-50">
+    <header className="bg-card border-b border-border shadow-card sticky top-0 z-40">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Left side - Menu and Logo */}
