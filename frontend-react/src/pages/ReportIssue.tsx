@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { RootState, AppDispatch } from '@/store';
 import { createIssue } from '@/store/slices/issuesSlice';
 import { useTranslation } from 'react-i18next';
+import GoogleTranslate from '@/components/GoogleTranslate';
 
 const ReportIssue = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -125,7 +126,10 @@ const ReportIssue = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">{t('reportIssue.title')}</h1>
+        <div className="flex items-center justify-center gap-4">
+          <h1 className="text-3xl font-bold">{t('reportIssue.title')}</h1>
+          <GoogleTranslate />
+        </div>
         <p className="text-muted-foreground">
           {t('reportIssue.subtitle')}
         </p>

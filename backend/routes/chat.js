@@ -69,7 +69,7 @@ router.post('/webhook', protect, async (req, res) => {
       messageLength: message.length
     });
 
-    // Forward request to n8n webhook
+
     const n8nResponse = await axios.post('http://localhost:5678/webhook/chat-assistant', {
       message,
       userId,
@@ -84,10 +84,12 @@ router.post('/webhook', protect, async (req, res) => {
       },
       timeout: 30000 // 30 second timeout
     });
-
+  
+    
     logger.info('Received response from n8n', {
       status: n8nResponse.status,
-      responseLength: JSON.stringify(n8nResponse.data).length
+      responseLength: JSON.stringify(n8nResponse.data).length,
+      responseData: n8nResponse.data
     });
 
     // Return the n8n response
@@ -97,9 +99,9 @@ router.post('/webhook', protect, async (req, res) => {
     logger.error('Chat webhook error:', error.message);
     
     if (error.code === 'ECONNREFUSED') {
-      return res.status(503).json({
-        success: false,
-        message: 'Chat service is temporarily unavailable. Please try again later.'
+      logger.warn('n8n webhook not available, returning fallback response');
+      return res.status(200).json({
+        response: `I received your message: "${message}". The AI chat service is currently unavailable, but I can help you with basic information about your issues.`
       });
     }
 

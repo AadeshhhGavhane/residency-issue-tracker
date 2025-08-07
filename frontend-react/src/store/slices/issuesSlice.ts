@@ -329,8 +329,15 @@ const issuesSlice = createSlice({
       .addCase(fetchAssignments.fulfilled, (state, action) => {
         state.isLoading = false;
         const payload = action.payload as any;
-        state.assignments = payload.assignments || payload.data?.assignments || [];
+        console.log('FetchAssignments fulfilled payload:', payload);
+        
+        const newAssignments = payload.assignments || payload.data?.assignments || [];
+        console.log('New assignments from API:', newAssignments.map(a => ({ id: a._id, status: a.status, title: a.issue?.title })));
+        
+        state.assignments = newAssignments;
         state.pagination = payload.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 };
+        
+        console.log('State assignments after fetch:', state.assignments.map(a => ({ id: a._id, status: a.status, title: a.issue?.title })));
       })
       .addCase(fetchAssignments.rejected, (state, action) => {
         state.isLoading = false;
@@ -346,6 +353,7 @@ const issuesSlice = createSlice({
         const payload = action.payload as any;
         
         console.log('UpdateAssignment fulfilled payload:', payload);
+        console.log('Current assignments before update:', state.assignments.map(a => ({ id: a._id, status: a.status })));
         
         // Handle different response structures
         let updatedAssignment;
@@ -369,13 +377,14 @@ const issuesSlice = createSlice({
           if (index !== -1) {
             // Merge the updated assignment with existing data to preserve populated fields
             const existingAssignment = state.assignments[index];
-            state.assignments[index] = {
+            const newAssignment = {
               ...existingAssignment,
               ...updatedAssignment,
               // Ensure status is updated
               status: updatedAssignment.status || existingAssignment.status
             };
-            console.log('Updated assignment in state:', state.assignments[index]);
+            state.assignments[index] = newAssignment;
+            console.log('Updated assignment in state:', newAssignment);
           } else {
             console.log('Assignment not found in state, adding new assignment');
             state.assignments.push(updatedAssignment);
@@ -392,6 +401,8 @@ const issuesSlice = createSlice({
         } else {
           console.log('No valid assignment data in payload');
         }
+        
+        console.log('Assignments after update:', state.assignments.map(a => ({ id: a._id, status: a.status })));
       })
       .addCase(updateAssignment.rejected, (state, action) => {
         state.isLoading = false;

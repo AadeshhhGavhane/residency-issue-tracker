@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   BarChart3, 
@@ -252,18 +252,68 @@ const AdminDashboard = () => {
       .slice(0, 5);
   };
 
+  // Pagination state for lazy loading
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(3);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
   const getRecentIssues = () => {
     try {
       if (!Array.isArray(issues) || !issues) return [];
       const issuesCopy = [...issues].filter((issue: Issue) => issue && issue.createdAt);
-      return issuesCopy
-        .sort((a: Issue, b: Issue) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5);
+      const sortedIssues = issuesCopy
+        .sort((a: Issue, b: Issue) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return sortedIssues.slice(0, currentPage * itemsPerPage);
     } catch (error) {
       console.error('AdminDashboard: Error in getRecentIssues:', error);
       return [];
     }
   };
+
+  const hasMoreIssues = () => {
+    if (!Array.isArray(issues) || !issues) return false;
+    return issues.length > currentPage * itemsPerPage;
+  };
+
+  // Load more function
+  const loadMore = useCallback(() => {
+    if (hasMoreIssues() && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setTimeout(() => {
+        setCurrentPage(prev => prev + 1);
+        setIsLoadingMore(false);
+      }, 500);
+    }
+  }, [hasMoreIssues, isLoadingMore]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMoreIssues() && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px',
+        threshold: 0.1
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [hasMoreIssues, isLoadingMore, loadMore]);
 
   // Status translation helper (same as Dashboard)
   const getStatusText = (status: string) => {
@@ -772,6 +822,26 @@ const AdminDashboard = () => {
                 </div>
               );
             })}
+
+            {/* Load More Section */}
+            {hasMoreIssues() && (
+              <div ref={loadMoreRef} className="text-center py-6">
+                {isLoadingMore ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <span className="text-muted-foreground">Loading more issues...</span>
+                  </div>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    onClick={loadMore}
+                    className="hover:bg-primary hover:text-white transition-all duration-200"
+                  >
+                    Load More Issues
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

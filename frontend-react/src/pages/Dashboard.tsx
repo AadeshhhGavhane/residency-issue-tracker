@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { RootState, AppDispatch } from '@/store';
 import { fetchIssues } from '@/store/slices/issuesSlice';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import GoogleTranslate from '@/components/GoogleTranslate';
 
 interface Issue {
   _id: string;
@@ -220,12 +221,62 @@ const Dashboard: React.FC = () => {
     return categories;
   };
 
+  // Pagination state for lazy loading
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(3);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
   const getRecentIssues = () => {
     if (!Array.isArray(issues) || !issues) return [];
-    return [...issues]
-      .sort((a: Issue, b: Issue) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5);
+    const sortedIssues = [...issues]
+      .sort((a: Issue, b: Issue) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return sortedIssues.slice(0, currentPage * itemsPerPage);
   };
+
+  const hasMoreIssues = () => {
+    if (!Array.isArray(issues) || !issues) return false;
+    return issues.length > currentPage * itemsPerPage;
+  };
+
+  // Load more function
+  const loadMore = useCallback(() => {
+    if (hasMoreIssues() && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setTimeout(() => {
+        setCurrentPage(prev => prev + 1);
+        setIsLoadingMore(false);
+      }, 500);
+    }
+  }, [hasMoreIssues, isLoadingMore]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMoreIssues() && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px',
+        threshold: 0.1
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [hasMoreIssues, isLoadingMore, loadMore]);
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -302,7 +353,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Welcome Section */}
       <div className="bg-gradient-hero rounded-lg p-6 text-white">
         <div className="flex items-center justify-between">
@@ -314,16 +365,8 @@ const Dashboard: React.FC = () => {
               {getText('dashboard.welcomeMessage', 'Manage and track community issues efficiently')}
             </p>
           </div>
-          {/* Language Toggle Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleLanguage}
-            className="flex items-center gap-2 bg-white/20 border-white/30 text-white hover:bg-white/30"
-          >
-            <Globe className="h-4 w-4" />
-            {i18n.language === 'en' ? 'हिंदी' : 'English'}
-          </Button>
+          {/* Google Translate Component */}
+          <GoogleTranslate />
         </div>
       </div>
 
@@ -456,33 +499,55 @@ const Dashboard: React.FC = () => {
         </CardHeader>
         <CardContent>
           {getRecentIssues().length > 0 ? (
-            <div className="space-y-3">
-              {getRecentIssues().map((issue: Issue) => {
-                const translatedIssue = getTranslatedIssue(issue);
-                return (
-                  <div key={issue._id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium">{translatedIssue.title}</h4>
-                      <p className="text-sm text-muted-foreground line-clamp-2">{translatedIssue.description}</p>
-                      <div className="flex items-center space-x-2 mt-2">
-                        <Badge className={getStatusBadgeClass(issue.status)}>
-                          {getStatusText(issue.status)}
-                        </Badge>
-                        <Badge className={getPriorityBadgeClass(issue.priority)}>
-                          {getPriorityText(issue.priority)}
-                        </Badge>
+            <>
+              <div className="space-y-3">
+                {getRecentIssues().map((issue: Issue) => {
+                  const translatedIssue = getTranslatedIssue(issue);
+                  return (
+                    <div key={issue._id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium">{translatedIssue.title}</h4>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{translatedIssue.description}</p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Badge className={getStatusBadgeClass(issue.status)}>
+                            {getStatusText(issue.status)}
+                          </Badge>
+                          <Badge className={getPriorityBadgeClass(issue.priority)}>
+                            {getPriorityText(issue.priority)}
+                          </Badge>
+                        </div>
                       </div>
+                      <Link to={`/my-issues`}>
+                        <Button variant="outline" size="sm">
+                          <Eye className="h-4 w-4 mr-1" />
+                          {getText('common.view', 'View')}
+                        </Button>
+                      </Link>
                     </div>
-                    <Link to={`/my-issues`}>
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        {getText('common.view', 'View')}
-                      </Button>
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              {/* Load More Section */}
+              {hasMoreIssues() && (
+                <div ref={loadMoreRef} className="text-center py-6">
+                  {isLoadingMore ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      <span className="text-muted-foreground">Loading more issues...</span>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      onClick={loadMore}
+                      className="hover:bg-primary hover:text-white transition-all duration-200"
+                    >
+                      Load More Issues
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

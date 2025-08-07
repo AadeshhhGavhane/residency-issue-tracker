@@ -125,14 +125,14 @@ Society Tracker Team`
   }),
 
   issueNotification: (data) => ({
-    subject: `New Issue Reported: ${data.title}`,
+    subject: `New Issue Reported: ${data.title || 'Untitled Issue'}`,
     body: `🔔 *New Issue Reported*
 
-*Issue:* ${data.title}
-*Category:* ${data.category}
-*Priority:* ${data.priority}
-*Reported by:* ${data.reportedBy}
-*Issue ID:* ${data.issueId}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Category:* ${data.category || 'Not specified'}
+*Priority:* ${data.priority || 'Not specified'}
+*Reported by:* ${data.reportedBy || 'Unknown'}
+*Issue ID:* ${data.issueId || 'N/A'}
 
 Please review and assign this issue to an appropriate technician.
 
@@ -140,15 +140,15 @@ Society Tracker Team`
   }),
 
   assignmentNotification: (data) => ({
-    subject: `New Assignment: ${data.title}`,
+    subject: `New Assignment: ${data.title || 'Untitled Issue'}`,
     body: `🔧 *New Assignment*
 
 You have been assigned a new issue:
 
-*Issue:* ${data.title}
-*Category:* ${data.category}
-*Priority:* ${data.priority}
-*Assigned by:* ${data.assignedBy}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Category:* ${data.category || 'Not specified'}
+*Priority:* ${data.priority || 'Not specified'}
+*Assigned by:* ${data.assignedBy || 'Unknown'}
 *Estimated time:* ${data.estimatedTime ? `${data.estimatedTime} hours` : 'Not specified'}
 
 Please review the issue details and begin work as soon as possible.
@@ -157,13 +157,13 @@ Society Tracker Team`
   }),
 
   assignmentAcceptedNotification: (data) => ({
-    subject: `Assignment Accepted: ${data.title}`,
+    subject: `Assignment Accepted: ${data.title || 'Untitled Issue'}`,
     body: `✅ *Assignment Accepted*
 
 The following assignment has been accepted:
 
-*Issue:* ${data.title}
-*Technician:* ${data.technicianName}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Technician:* ${data.technicianName || 'Unknown'}
 *Status:* Accepted
 
 The technician will begin work on this issue.
@@ -172,13 +172,13 @@ Society Tracker Team`
   }),
 
   assignmentRejectedNotification: (data) => ({
-    subject: `Assignment Rejected: ${data.title}`,
+    subject: `Assignment Rejected: ${data.title || 'Untitled Issue'}`,
     body: `❌ *Assignment Rejected*
 
 The following assignment has been rejected:
 
-*Issue:* ${data.title}
-*Technician:* ${data.technicianName}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Technician:* ${data.technicianName || 'Unknown'}
 *Reason:* ${data.reason || 'No reason provided'}
 
 The assignment will be reassigned to another technician.
@@ -187,13 +187,13 @@ Society Tracker Team`
   }),
 
   assignmentStartedNotification: (data) => ({
-    subject: `Work Started: ${data.title}`,
+    subject: `Work Started: ${data.title || 'Untitled Issue'}`,
     body: `🚀 *Work Started*
 
 The technician has started working on the following assignment:
 
-*Issue:* ${data.title}
-*Technician:* ${data.technicianName}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Technician:* ${data.technicianName || 'Unknown'}
 *Status:* In Progress
 
 The work is now in progress. You will be notified when it's completed.
@@ -202,14 +202,14 @@ Society Tracker Team`
   }),
 
   assignmentCompletedNotification: (data) => ({
-    subject: `Assignment Completed: ${data.title}`,
+    subject: `Assignment Completed: ${data.title || 'Untitled Issue'}`,
     body: `✅ *Assignment Completed*
 
 The following assignment has been completed:
 
-*Issue:* ${data.title}
-*Technician:* ${data.technicianName}
-*Time spent:* ${data.timeSpent} minutes
+*Issue:* ${data.title || 'Untitled Issue'}
+*Technician:* ${data.technicianName || 'Unknown'}
+*Time spent:* ${data.timeSpent || 'Unknown'} minutes
 *Notes:* ${data.notes || 'No notes provided'}
 
 The issue has been marked as resolved.
@@ -218,13 +218,13 @@ Society Tracker Team`
   }),
 
   issueResolvedNotification: (data) => ({
-    subject: `Issue Resolved: ${data.title}`,
+    subject: `Issue Resolved: ${data.title || 'Untitled Issue'}`,
     body: `✅ *Issue Resolved*
 
 Your reported issue has been resolved:
 
-*Issue:* ${data.title}
-*Status:* ${data.status}
+*Issue:* ${data.title || 'Untitled Issue'}
+*Status:* ${data.status || 'Resolved'}
 
 Thank you for reporting this issue. We appreciate your patience.
 
@@ -239,11 +239,23 @@ const sendMobileVerificationWhatsApp = async (phoneNumber, verificationToken, us
 };
 
 const sendIssueNotificationWhatsApp = async (phoneNumber, data) => {
+  logger.info('Sending WhatsApp issue notification', {
+    phoneNumber,
+    dataKeys: Object.keys(data),
+    hasTitle: !!data.title,
+    title: data.title
+  });
   const template = whatsappTemplates.issueNotification(data);
   return await sendWhatsAppMessage(template.body, phoneNumber);
 };
 
 const sendAssignmentNotificationWhatsApp = async (phoneNumber, data) => {
+  logger.info('Sending WhatsApp assignment notification', {
+    phoneNumber,
+    dataKeys: Object.keys(data),
+    hasTitle: !!data.title,
+    title: data.title
+  });
   const template = whatsappTemplates.assignmentNotification(data);
   return await sendWhatsAppMessage(template.body, phoneNumber);
 };

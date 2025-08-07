@@ -510,20 +510,20 @@ const completeAssignment = async (req, res) => {
       try {
         await emailService.sendAssignmentCompletedNotification(committeeMember.email, {
           assignmentId: assignment._id,
-          issueTitle: issue.title || 'Issue',
+          title: issue.title || 'Issue',
           technicianName: req.user.name,
           timeSpent,
-          completionNotes
+          notes: completionNotes
         });
         
         // Send WhatsApp notification to committee member
         if (committeeMember.phoneNumber && committeeMember.isMobileVerified) {
           await sendAssignmentCompletedNotificationWhatsApp(committeeMember.phoneNumber, {
             assignmentId: assignment._id,
-            issueTitle: issue.title || 'Issue',
+            title: issue.title || 'Issue',
             technicianName: req.user.name,
             timeSpent,
-            completionNotes
+            notes: completionNotes
           });
         }
       } catch (notificationError) {

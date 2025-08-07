@@ -39,6 +39,7 @@ import {
 import { openModal, closeModal } from '@/store/slices/uiSlice';
 import { issuesAPI } from '@/services/api';
 import FeedbackModal from '@/components/FeedbackModal';
+import GoogleTranslate from '@/components/GoogleTranslate';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -610,22 +611,14 @@ const MyIssues = () => {
   const pageTitle = isCommittee ? getText('navigation.allIssues', 'All Issues') : getText('navigation.myIssues', 'My Issues');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold">{pageTitle}</h1>
-            {/* Language Toggle Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleLanguage}
-              className="flex items-center gap-2"
-            >
-              <Globe className="h-4 w-4" />
-              {i18n.language === 'en' ? 'हिंदी' : 'English'}
-            </Button>
+            {/* Google Translate Component */}
+            <GoogleTranslate />
           </div>
           <p className="text-muted-foreground">
             {isCommittee ? getText('issues.manageAllIssues', 'Manage and track all community issues') : getText('issues.trackYourIssues', 'Track and manage your reported issues')}
@@ -951,136 +944,125 @@ const MyIssues = () => {
         open={modals.issueDetails} 
         onOpenChange={() => dispatch(closeModal('issueDetails'))}
       >
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedIssue ? getTranslatedIssue(selectedIssue).title : ''}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-2xl font-bold text-primary">
+              {selectedIssue ? getTranslatedIssue(selectedIssue).title : ''}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               {t('modal.issueDetailsDescription')}
             </DialogDescription>
           </DialogHeader>
           
           {selectedIssue && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-4">{t('modal.issueInformation')}</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.title', 'Title')}:</span>
-                      <span>{getTranslatedIssue(selectedIssue).title}</span>
+            <div className="space-y-8">
+              {/* Main Issue Information - Centered Layout */}
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-6 border border-primary/20">
+                <h4 className="text-lg font-semibold text-primary mb-6 text-center">{t('modal.issueInformation')}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">{getText('labels.category', 'Category')}</span>
+                      <span className="text-base">{getCategoryText(selectedIssue.category)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.description', 'Description')}:</span>
-                      <span className="text-right">{getTranslatedIssue(selectedIssue).description}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.category', 'Category')}:</span>
-                      <span>{getCategoryText(selectedIssue.category)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.priority', 'Priority')}:</span>
-                      <Badge className={getPriorityBadgeClass(selectedIssue.priority)}>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">{getText('labels.priority', 'Priority')}</span>
+                      <Badge className={`${getPriorityBadgeClass(selectedIssue.priority)} text-sm px-3 py-1`}>
                         {getPriorityText(selectedIssue.priority)}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.status', 'Status')}:</span>
-                      <Badge className={getStatusBadgeClass(selectedIssue.status)}>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">{getText('labels.status', 'Status')}</span>
+                      <Badge className={`${getStatusBadgeClass(selectedIssue.status)} text-sm px-3 py-1`}>
                         {getStatusText(selectedIssue.status)}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">{getText('labels.reported', 'Reported')}:</span>
-                      <span>{formatDate(selectedIssue.createdAt)}</span>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">{getText('labels.reported', 'Reported')}</span>
+                      <span className="text-base">{formatDate(selectedIssue.createdAt)}</span>
                     </div>
+                  </div>
+                  
+                  <div className="space-y-4">
                     {selectedIssue.assignedToName && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">{getText('labels.assignedTo', 'Assigned to')}:</span>
-                        <span>{selectedIssue.assignedToName}</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">{getText('labels.assignedTo', 'Assigned to')}</span>
+                        <span className="text-base">{selectedIssue.assignedToName}</span>
                       </div>
                     )}
                     {selectedIssue.assignedAt && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">{getText('labels.assignedAt', 'Assigned')}:</span>
-                        <span>{formatDate(selectedIssue.assignedAt)}</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">{getText('labels.assignedAt', 'Assigned')}</span>
+                        <span className="text-base">{formatDate(selectedIssue.assignedAt)}</span>
                       </div>
                     )}
                     {selectedIssue.resolvedAt && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">{getText('labels.resolvedAt', 'Resolved')}:</span>
-                        <span>{formatDate(selectedIssue.resolvedAt)}</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">{getText('labels.resolvedAt', 'Resolved')}</span>
+                        <span className="text-base">{formatDate(selectedIssue.resolvedAt)}</span>
                       </div>
                     )}
                     {(selectedIssue.status === 'resolved' || selectedIssue.status === 'closed') && selectedIssue.rating && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="font-medium">{getText('labels.yourRating', 'Your Rating')}:</span>
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                            <span className="font-medium text-yellow-600">{selectedIssue.rating}/5</span>
-                          </div>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">{getText('labels.yourRating', 'Your Rating')}</span>
+                        <div className="flex items-center gap-2">
+                          <Star className="h-5 w-5 text-yellow-500 fill-current" />
+                          <span className="text-lg font-bold text-yellow-600">{selectedIssue.rating}/5</span>
                         </div>
-                        {selectedIssue.ratingComment && (
-                          <div className="flex justify-between">
-                            <span className="font-medium">{getText('labels.yourComment', 'Your Comment')}:</span>
-                            <span className="text-right max-w-xs">{selectedIssue.ratingComment}</span>
-                          </div>
-                        )}
-                        {selectedIssue.ratedAt && (
-                          <div className="flex justify-between">
-                            <span className="font-medium">{getText('labels.ratedOn', 'Rated on')}:</span>
-                            <span>{formatDate(selectedIssue.ratedAt)}</span>
-                          </div>
-                        )}
-                      </>
+                      </div>
                     )}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium mb-4">{getText('labels.location', 'Location')}</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{getText('labels.block', 'Block')}: {selectedIssue.address?.blockNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span>{getText('labels.apartment', 'Apartment')}: {selectedIssue.address?.apartmentNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{getText('labels.floor', 'Floor')}: {selectedIssue.address?.floorNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{getText('labels.area', 'Area')}: {selectedIssue.address?.area || 'N/A'}</span>
-                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Description Section */}
+              <div className="bg-muted/30 rounded-lg p-6">
+                <h4 className="text-lg font-semibold mb-4 text-center">{getText('labels.description', 'Description')}</h4>
+                <p className="text-base leading-relaxed text-center max-w-2xl mx-auto">
+                  {getTranslatedIssue(selectedIssue).description}
+                </p>
+              </div>
+
+              {/* Rating Comment */}
+              {(selectedIssue.status === 'resolved' || selectedIssue.status === 'closed') && selectedIssue.ratingComment && (
+                <div className="bg-yellow-50 rounded-lg p-6 border border-yellow-200">
+                  <h4 className="text-lg font-semibold text-yellow-700 mb-4 text-center">{getText('labels.yourComment', 'Your Comment')}</h4>
+                  <p className="text-base leading-relaxed text-center max-w-2xl mx-auto text-yellow-800">
+                    {selectedIssue.ratingComment}
+                  </p>
+                </div>
+              )}
+
+              {/* Media Section */}
               {(selectedIssue.images?.length > 0 || selectedIssue.videos?.length > 0) && (
-                <div>
-                  <h4 className="font-medium mb-4">{getText('labels.media', 'Media')}</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-muted/30 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold mb-6 text-center">{getText('labels.media', 'Media Attachments')}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
                     {selectedIssue.images?.map((image: any, index: number) => (
-                      <img
-                        key={`${selectedIssue._id}-image-${index}`}
-                        src={image.url}
-                        alt={`Issue ${index + 1}`}
-                        className="aspect-square object-cover rounded-lg"
-                      />
+                      <div key={`${selectedIssue._id}-image-${index}`} className="group relative">
+                        <img
+                          src={image.url}
+                          alt={`Issue ${index + 1}`}
+                          className="aspect-square object-cover rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">Image {index + 1}</span>
+                        </div>
+                      </div>
                     ))}
                     {selectedIssue.videos?.map((video: any, index: number) => (
-                      <video
-                        key={`${selectedIssue._id}-video-${index}`}
-                        controls
-                        className="aspect-square object-cover rounded-lg"
-                      >
-                        <source src={video.url} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
+                      <div key={`${selectedIssue._id}-video-${index}`} className="group relative">
+                        <video
+                          controls
+                          className="aspect-square object-cover rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group-hover:scale-105"
+                        >
+                          <source src={video.url} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">Video {index + 1}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

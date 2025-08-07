@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   Wrench, 
@@ -54,10 +54,65 @@ const TechnicianDashboard = () => {
   });
   const [rejectionReason, setRejectionReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
+  
+  // Pagination state for lazy loading
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(3);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log('TechnicianDashboard: Fetching assignments on mount');
     dispatch(fetchAssignments({}));
   }, [dispatch]);
+
+  // Debug effect to log assignments changes
+  useEffect(() => {
+    console.log('TechnicianDashboard: Assignments updated:', assignments.map(a => ({ id: a._id, status: a.status, title: a.issue?.title })));
+  }, [assignments]);
+
+  // Calculate paginated assignments
+  const paginatedAssignments = assignments.slice(0, currentPage * itemsPerPage);
+  const hasMoreAssignments = assignments.length > currentPage * itemsPerPage;
+
+  // Load more function
+  const loadMore = useCallback(() => {
+    if (hasMoreAssignments && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setTimeout(() => {
+        setCurrentPage(prev => prev + 1);
+        setIsLoadingMore(false);
+      }, 500);
+    }
+  }, [hasMoreAssignments, isLoadingMore]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMoreAssignments && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px',
+        threshold: 0.1
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [hasMoreAssignments, isLoadingMore, loadMore]);
 
   const getAnalytics = () => {
     if (!Array.isArray(assignments)) {
@@ -125,17 +180,26 @@ const TechnicianDashboard = () => {
 
   const handleStartWork = async (assignmentId: string) => {
     try {
-      await dispatch(updateAssignment({ id: assignmentId, action: 'start' }));
-      dispatch(fetchAssignments({}));
+      console.log('Starting work for assignment:', assignmentId);
+      const result = await dispatch(updateAssignment({ id: assignmentId, action: 'start' })).unwrap();
+      console.log('Start work result:', result);
+      await dispatch(fetchAssignments({}));
+      console.log('Assignments refreshed after start work');
     } catch (error) {
       console.error('Error starting work:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start work. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleCompleteAssignment = async () => {
     if (selectedAssignment && completionData.completionNotes.trim() && completionData.timeSpent.trim()) {
       try {
-        await dispatch(updateAssignment({
+        console.log('Completing assignment:', selectedAssignment._id);
+        const result = await dispatch(updateAssignment({
           id: selectedAssignment._id,
           action: 'complete',
           data: {
@@ -143,14 +207,35 @@ const TechnicianDashboard = () => {
             timeSpent: parseInt(completionData.timeSpent),
             materialsUsed: completionData.materialsUsed
           }
-        }));
+        })).unwrap();
+        console.log('Complete assignment result:', result);
+        
         setShowCompleteDialog(false);
         setCompletionData({ completionNotes: '', timeSpent: '', materialsUsed: '' });
         setSelectedAssignment(null);
-        dispatch(fetchAssignments({}));
+        
+        await dispatch(fetchAssignments({}));
+        console.log('Assignments refreshed after completion');
+        
+        toast({
+          title: "Success",
+          description: "Assignment completed successfully!",
+          variant: "default",
+        });
       } catch (error) {
         console.error('Error completing assignment:', error);
+        toast({
+          title: "Error",
+          description: "Failed to complete assignment. Please try again.",
+          variant: "destructive",
+        });
       }
+    } else {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (completion notes and time spent).",
+        variant: "destructive",
+      });
     }
   };
 
@@ -368,7 +453,7 @@ const TechnicianDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Enhanced Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
@@ -480,7 +565,7 @@ const TechnicianDashboard = () => {
             </CardContent>
           </Card>
         ) : (
-          assignments
+          paginatedAssignments
             .filter(assignment => assignment && assignment.issue && assignment.issue.title) // Filter invalid assignments
             .map((assignment, index) => (
               <Card 
@@ -521,12 +606,7 @@ const TechnicianDashboard = () => {
                           <Calendar className="h-3 w-3" />
                           <span>{formatDate(assignment.assignedAt)}</span>
                         </div>
-                        {assignment.issue.address && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>Block {assignment.issue.address.blockNumber || 'N/A'}</span>
-                          </div>
-                        )}
+
                       </div>
 
                       {/* Payment Information */}
@@ -560,46 +640,62 @@ const TechnicianDashboard = () => {
               </Card>
             ))
         )}
+
+        {/* Load More Section */}
+        {hasMoreAssignments && (
+          <div ref={loadMoreRef} className="text-center py-8">
+            {isLoadingMore ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span className="text-muted-foreground">Loading more assignments...</span>
+              </div>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={loadMore}
+                className="hover:bg-primary hover:text-white transition-all duration-200"
+              >
+                Load More Assignments
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Assignment Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-primary">Assignment Details</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-2xl font-bold text-primary">Assignment Details</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Detailed information about this assignment and work requirements
             </DialogDescription>
           </DialogHeader>
           
           {selectedAssignment && selectedAssignment.issue && (
-            <div className="space-y-6">
-              {/* Issue Information */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-4">Issue Information</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="font-medium">Title:</span>
-                      <span>{selectedAssignment.issue.title}</span>
+            <div className="space-y-8">
+              {/* Main Issue Information - Centered Layout */}
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-6 border border-primary/20">
+                <h4 className="text-lg font-semibold text-primary mb-6 text-center">Issue Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Title</span>
+                      <span className="text-base font-semibold">{selectedAssignment.issue.title}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Description:</span>
-                      <span className="text-right">{selectedAssignment.issue.description || 'N/A'}</span>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Category</span>
+                      <span className="text-base">{selectedAssignment.issue.category || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Category:</span>
-                      <span>{selectedAssignment.issue.category || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Priority:</span>
-                      <Badge className={getPriorityBadgeClass(selectedAssignment.issue.priority)}>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Priority</span>
+                      <Badge className={`${getPriorityBadgeClass(selectedAssignment.issue.priority)} text-sm px-3 py-1`}>
                         {selectedAssignment.issue.priority}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Status:</span>
-                      <Badge className={getStatusBadgeClass(selectedAssignment.status)}>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Status</span>
+                      <Badge className={`${getStatusBadgeClass(selectedAssignment.status)} text-sm px-3 py-1`}>
                         {selectedAssignment.status === 'pending' ? 'Pending' :
                          selectedAssignment.status === 'accepted' ? 'Accepted' :
                          selectedAssignment.status === 'in_progress' ? 'In Progress' :
@@ -607,89 +703,90 @@ const TechnicianDashboard = () => {
                          selectedAssignment.status === 'rejected' ? 'Rejected' : selectedAssignment.status}
                       </Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Assigned:</span>
-                      <span>{formatDate(selectedAssignment.assignedAt)}</span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Assigned Date</span>
+                      <span className="text-base">{formatDate(selectedAssignment.assignedAt)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Assigned by:</span>
-                      <span>{selectedAssignment.assignedBy?.name || 'N/A'}</span>
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm font-medium text-muted-foreground">Assigned By</span>
+                      <span className="text-base">{selectedAssignment.assignedBy?.name || 'N/A'}</span>
                     </div>
                     {selectedAssignment.estimatedCompletionTime && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">Estimated completion:</span>
-                        <span>{formatDate(selectedAssignment.estimatedCompletionTime)}</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">Estimated Completion</span>
+                        <span className="text-base">{formatDate(selectedAssignment.estimatedCompletionTime)}</span>
                       </div>
                     )}
                     {selectedAssignment.actualCompletionTime && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">Completed:</span>
-                        <span>{formatDate(selectedAssignment.actualCompletionTime)}</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">Completed Date</span>
+                        <span className="text-base">{formatDate(selectedAssignment.actualCompletionTime)}</span>
                       </div>
                     )}
                     {selectedAssignment.timeSpent && (
-                      <div className="flex justify-between">
-                        <span className="font-medium">Time spent:</span>
-                        <span>{selectedAssignment.timeSpent} minutes</span>
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm font-medium text-muted-foreground">Time Spent</span>
+                        <span className="text-base">{selectedAssignment.timeSpent} minutes</span>
                       </div>
                     )}
-                    {selectedAssignment.paymentAmount && selectedAssignment.paymentAmount > 0 && (
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200 mt-3">
-                        <span className="font-medium text-green-700">Payment Amount:</span>
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="text-lg font-bold text-green-700">₹{selectedAssignment.paymentAmount}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium mb-4">Location</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>Block: {selectedAssignment.issue.address?.blockNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span>Apartment: {selectedAssignment.issue.address?.apartmentNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Floor: {selectedAssignment.issue.address?.floorNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>Area: {selectedAssignment.issue.address?.area || 'N/A'}</span>
-                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Media */}
+              {/* Description Section */}
+              <div className="bg-muted/30 rounded-lg p-6">
+                <h4 className="text-lg font-semibold mb-4 text-center">Description</h4>
+                <p className="text-base leading-relaxed text-center max-w-2xl mx-auto">
+                  {selectedAssignment.issue.description || 'No description available'}
+                </p>
+              </div>
+
+              {/* Payment Information */}
+              {selectedAssignment.paymentAmount && selectedAssignment.paymentAmount > 0 && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
+                  <div className="text-center">
+                    <h4 className="text-lg font-semibold text-green-700 mb-2">Payment Information</h4>
+                    <div className="flex items-center justify-center gap-3">
+                      <DollarSign className="h-6 w-6 text-green-600" />
+                      <span className="text-2xl font-bold text-green-700">₹{selectedAssignment.paymentAmount}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Media Section */}
               {(selectedAssignment.issue.images?.length > 0 || selectedAssignment.issue.videos?.length > 0) && (
-                <div>
-                  <h4 className="font-medium mb-4">Media</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-muted/30 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold mb-6 text-center">Media Attachments</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
                     {selectedAssignment.issue.images?.map((image: any, index: number) => (
-                      <img
-                        key={`${selectedAssignment._id}-image-${index}`}
-                        src={image.url}
-                        alt={`Issue ${index + 1}`}
-                        className="aspect-square object-cover rounded-lg"
-                      />
+                      <div key={`${selectedAssignment._id}-image-${index}`} className="group relative">
+                        <img
+                          src={image.url}
+                          alt={`Issue ${index + 1}`}
+                          className="aspect-square object-cover rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">Image {index + 1}</span>
+                        </div>
+                      </div>
                     ))}
                     {selectedAssignment.issue.videos?.map((video: any, index: number) => (
-                      <video
-                        key={`${selectedAssignment._id}-video-${index}`}
-                        controls
-                        className="aspect-square object-cover rounded-lg"
-                      >
-                        <source src={video.url} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
+                      <div key={`${selectedAssignment._id}-video-${index}`} className="group relative">
+                        <video
+                          controls
+                          className="aspect-square object-cover rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group-hover:scale-105"
+                        >
+                          <source src={video.url} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">Video {index + 1}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -697,17 +794,21 @@ const TechnicianDashboard = () => {
 
               {/* Assignment Notes */}
               {selectedAssignment.assignmentNotes && (
-                <div>
-                  <h4 className="font-medium mb-4">Assignment Notes</h4>
-                  <p className="text-muted-foreground">{selectedAssignment.assignmentNotes}</p>
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                  <h4 className="text-lg font-semibold text-blue-700 mb-4 text-center">Assignment Notes</h4>
+                  <p className="text-base leading-relaxed text-center max-w-2xl mx-auto text-blue-800">
+                    {selectedAssignment.assignmentNotes}
+                  </p>
                 </div>
               )}
 
               {/* Completion Notes */}
               {selectedAssignment.completionNotes && (
-                <div>
-                  <h4 className="font-medium mb-4">Completion Notes</h4>
-                  <p className="text-muted-foreground">{selectedAssignment.completionNotes}</p>
+                <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+                  <h4 className="text-lg font-semibold text-green-700 mb-4 text-center">Completion Notes</h4>
+                  <p className="text-base leading-relaxed text-center max-w-2xl mx-auto text-green-800">
+                    {selectedAssignment.completionNotes}
+                  </p>
                 </div>
               )}
             </div>

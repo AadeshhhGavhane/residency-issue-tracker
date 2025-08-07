@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User, MapPin } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MessageCircle, X, Send, Bot, User, MapPin, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
-
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+  
 interface Media {
   type: 'image' | 'video';
   url: string;
@@ -19,6 +21,7 @@ interface Message {
   sender: 'user' | 'bot';
   timestamp: Date;
   media?: Media[];
+  audioUrl?: string;
 }
 
 interface User {
@@ -38,6 +41,18 @@ const ChatWidget = () => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useSelector((state: RootState) => state.auth);
+
+  // Voice chat states
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const apiKey = "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";
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const getTokenFromAPI = async () => {
     try {
@@ -65,6 +80,140 @@ const ChatWidget = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Voice chat functions
+  const checkBrowserSupport = () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.log('Browser Error: Your browser does not support audio recording.');
+      return false;
+    }
+
+    if (!window.MediaRecorder) {
+      console.log('Browser Error: MediaRecorder is not supported in your browser.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const getSupportedMimeType = () => {
+    const types = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+      'audio/mp4',
+      'audio/mpeg'
+    ];
+
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        console.log('Using MIME type:', type);
+        return type;
+      }
+    }
+
+    return 'audio/webm';
+  };
+
+  const startRecording = async () => {
+    if (!checkBrowserSupport()) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        await sendAudioToGroq(audioBlob);
+        
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      // Start timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      console.log('Microphone Error: Failed to access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsProcessing(true);
+      
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    }
+  };
+
+  const sendAudioToGroq = async (audioBlob: Blob) => {
+    try {
+      const audioFile = new File([audioBlob], 'recording.webm', { 
+        type: audioBlob.type 
+      });
+
+      const formData = new FormData();
+      formData.append('model', 'whisper-large-v3-turbo');
+      formData.append('file', audioFile);
+      formData.append('response_format', 'verbose_json');
+
+      const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Groq API Response:', result);
+      
+      if (result.text) {
+        setInputValue(result.text.trim());
+        console.log('Success: Transcription complete! Text added to input.');
+      }
+      
+      setIsProcessing(false);
+
+    } catch (error) {
+      console.error('Error sending audio to Groq:', error);
+      console.log(`Transcription Error: Failed to transcribe audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsProcessing(false);
+    }
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -151,6 +300,52 @@ const ChatWidget = () => {
     };
   };
 
+  const generateTTS = async (text: string): Promise<string | null> => {
+    try {
+      console.log('Generating TTS for text:', text.substring(0, 100) + '...');
+      console.log('Using API key:', apiKey.substring(0, 10) + '...');
+      console.log('TTS Request body:', {
+        model: 'playai-tts',
+        voice: 'Jennifer-PlayAI',
+        input: text.substring(0, 50) + '...',
+        response_format: 'wav'
+      });
+      
+      const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'playai-tts',
+          voice: 'Jennifer-PlayAI',
+          input: text,
+          response_format: 'wav'
+        })
+      });
+
+      console.log('TTS Response status:', response.status);
+      console.log('TTS Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('TTS Error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`);
+      }
+
+      const audioBlob = await response.blob();
+      console.log('TTS Audio blob size:', audioBlob.size);
+      const audioUrl = URL.createObjectURL(audioBlob);
+      return audioUrl;
+
+    } catch (error) {
+      console.error('Error generating TTS:', error);
+      console.log(`TTS Error: Failed to generate audio response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return null;
+    }
+  };
+
   const sendMessage = async (message: string) => {
     if (!message.trim()) return;
 
@@ -216,6 +411,7 @@ const ChatWidget = () => {
 
       const { text, media } = parseCloudinaryURLs(responseText);
       
+      // Add bot message first
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         text,
@@ -225,6 +421,22 @@ const ChatWidget = () => {
       };
 
       setMessages(prev => [...prev, botMessage]);
+      
+      // Generate TTS for bot response (non-blocking)
+      generateTTS(text).then(audioUrl => {
+        if (audioUrl) {
+          // Update the message with audio URL
+          setMessages(prev => prev.map(msg => 
+            msg.id === botMessage.id 
+              ? { ...msg, audioUrl }
+              : msg
+          ));
+        }
+      }).catch(error => {
+        console.error('TTS generation failed, but message was sent:', error);
+        // Don't show error toast here as the message was successfully sent
+      });
+
     } catch (error) {
       console.error('Chat error:', error);
       const errorMessage: Message = {
@@ -320,49 +532,84 @@ const ChatWidget = () => {
                     )}
                     
                     {messages.map((message) => (
-  <div
-    key={message.id}
-    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
-  >
-    <div
-      className={`max-w-xs rounded-lg px-3 py-2 break-words ${
-        message.sender === 'user'
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-muted text-foreground'
-      }`}
-    >
-      {message.text && (
-        <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-      )}
-      {message.media && message.media.length > 0 && (
-        <div className="mt-2 space-y-2">
-          {message.media.map((media, index) => (
-            <div key={`${message.id}-media-${index}`}>
-              {media.type === 'image' ? (
-                <img
-                  src={media.url}
-                  alt="Shared image"
-                  className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
-                />
-              ) : (
-                <video
-                  controls
-                  className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
-                >
-                  <source src={media.url} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="text-xs opacity-70 mt-1">
-        {formatTime(message.timestamp)}
-      </p>
-    </div>
-  </div>
-))}
+                      <div
+                        key={message.id}
+                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+                      >
+                        <div
+                          className={`max-w-xs rounded-lg px-3 py-2 break-words ${
+                            message.sender === 'user'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-foreground'
+                          }`}
+                        >
+                          {message.text && (
+                            <div className="text-sm">
+                              {message.sender === 'bot' ? (
+                                <ReactMarkdown 
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                                    li: ({ children }) => <li className="text-sm">{children}</li>,
+                                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                                    em: ({ children }) => <em className="italic">{children}</em>,
+                                    code: ({ children }) => <code className="bg-muted-foreground/20 px-1 py-0.5 rounded text-xs">{children}</code>,
+                                    pre: ({ children }) => <pre className="bg-muted-foreground/20 p-2 rounded text-xs overflow-x-auto">{children}</pre>,
+                                  }}
+                                >
+                                  {message.text}
+                                </ReactMarkdown>
+                              ) : (
+                                <p className="whitespace-pre-wrap">{message.text}</p>
+                              )}
+                            </div>
+                          )}
+                          {message.media && message.media.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {message.media.map((media, index) => (
+                                <div key={`${message.id}-media-${index}`}>
+                                  {media.type === 'image' ? (
+                                    <img
+                                      src={media.url}
+                                      alt="Shared image"
+                                      className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
+                                    />
+                                  ) : (
+                                    <video
+                                      controls
+                                      className="max-w-[200px] max-h-[200px] object-cover rounded-lg"
+                                    >
+                                      <source src={media.url} type="video/mp4" />
+                                      Your browser does not support the video tag.
+                                    </video>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {message.audioUrl && message.sender === 'bot' && (
+                            <div className="mt-2">
+                              <audio
+                                controls
+                                className="w-full max-w-[300px] h-8"
+                                src={message.audioUrl}
+                                onError={(e) => {
+                                  console.error('Audio playback error:', e);
+                                  console.log('Audio Error: Failed to play audio response');
+                                }}
+                              >
+                                Your browser does not support the audio element.
+                              </audio>
+                            </div>
+                          )}
+                          <p className="text-xs opacity-70 mt-1">
+                            {formatTime(message.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                     
                     {isLoading && (
                       <div className="flex justify-start">
@@ -387,7 +634,7 @@ const ChatWidget = () => {
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       placeholder="Type your message..."
-                      disabled={isLoading}
+                      disabled={isLoading || isProcessing}
                       className="flex-1"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -418,18 +665,36 @@ const ChatWidget = () => {
                     >
                       <User className="h-4 w-4" />
                     </Button>
+                    {/* Voice Chat Button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={isRecording ? stopRecording : startRecording}
+                      disabled={isLoading || isProcessing}
+                      className="px-2"
+                      title={isRecording ? "Stop recording" : "Start voice recording"}
+                    >
+                      {isRecording ? (
+                        <MicOff className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <Mic className="h-4 w-4" />
+                      )}
+                    </Button>
                     <Button 
                       type="button" 
                       size="sm"
                       onClick={handleSubmit}
-                      disabled={isLoading || !inputValue.trim()}
+                      disabled={isLoading || !inputValue.trim() || isProcessing}
                     >
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
-                  {isGettingLocation && (
+                  {(isGettingLocation || isRecording || isProcessing) && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Getting your location...
+                      {isGettingLocation && "Getting your location..."}
+                                             {isRecording && `Recording ${formatRecordingTime(recordingTime)}`}
+                      {isProcessing && "Processing audio..."}
                     </p>
                   )}
                 </div>
