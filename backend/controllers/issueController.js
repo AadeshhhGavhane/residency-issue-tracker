@@ -12,6 +12,53 @@ const {
   sendIssueNotificationWhatsApp,
   sendAssignmentNotificationWhatsApp
 } = require('../services/whatsappService');
+const axios = require('axios');
+
+/**
+ * Verify image matches issue title and description using n8n webhook
+ * @param {string} title - Issue title
+ * @param {string} description - Issue description  
+ * @param {string} imageUrl - Cloudinary image URL
+ * @returns {Promise<boolean>} - True if image matches, false otherwise
+ */
+const verifyImageWithN8n = async (title, description, imageUrl) => {
+  try {
+    logger.info('Verifying image with n8n webhook', {
+      title,
+      description: description.substring(0, 100) + '...',
+      imageUrl: imageUrl.substring(0, 50) + '...'
+    });
+
+    const response = await axios.post('https://hiaa123.app.n8n.cloud/webhook/analyze-image', {
+      title,
+      description,
+      images: imageUrl
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30 second timeout
+    });
+
+    logger.info('n8n image verification response', {
+      status: response.status,
+      data: response.data
+    });
+
+    // Check if the response indicates valid entry
+    return response.data && response.data.output === 'valid entry';
+
+  } catch (error) {
+    logger.error('Image verification failed:', {
+      error: error.message,
+      title,
+      description: description.substring(0, 100) + '...',
+      imageUrl: imageUrl.substring(0, 50) + '...'
+    });
+    // If verification fails, we'll allow the issue to be created but log the error
+    return true; // Default to allowing the issue
+  }
+};
 
 /**
  * Create a new issue
@@ -91,6 +138,57 @@ const createIssue = async (req, res) => {
 
     // Get readable address from coordinates
     const readableAddress = await GeocodingService.reverseGeocode(parseFloat(latitude), parseFloat(longitude));
+    
+    // Verify images with n8n if images are uploaded
+    let imageVerificationPassed = true;
+    let verificationDetails = [];
+    
+    // Check if image verification is enabled (can be controlled via environment variable)
+    const imageVerificationEnabled = process.env.ENABLE_IMAGE_VERIFICATION !== 'false';
+    
+    if (images.length > 0 && imageVerificationEnabled) {
+      logger.info(`Verifying ${images.length} image(s) with n8n webhook`);
+      
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        logger.info(`Verifying image ${i + 1}/${images.length}: ${image.url.substring(0, 50)}...`);
+        
+        const isImageValid = await verifyImageWithN8n(title, description, image.url);
+        verificationDetails.push({
+          imageIndex: i + 1,
+          imageUrl: image.url,
+          isValid: isImageValid
+        });
+        
+        if (!isImageValid) {
+          imageVerificationPassed = false;
+          logger.warn(`Image verification failed for image ${i + 1}: ${image.url}`);
+          break;
+        }
+      }
+      
+      logger.info('Image verification completed', {
+        totalImages: images.length,
+        passed: imageVerificationPassed,
+        details: verificationDetails
+      });
+    } else if (images.length > 0 && !imageVerificationEnabled) {
+      logger.info('Image verification disabled, skipping verification');
+    } else {
+      logger.info('No images uploaded, skipping verification');
+    }
+
+    if (!imageVerificationPassed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image verification failed. Please ensure the uploaded images match the issue description.',
+        data: {
+          verificationFailed: true,
+          reason: 'Image content does not match the reported issue',
+          details: verificationDetails
+        }
+      });
+    }
     
     // Create issue with default priority (will be updated by AI)
     const issue = new Issue({

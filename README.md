@@ -12,6 +12,7 @@ A **comprehensive, fullstack issue tracking system** built for residential socie
 - ✅ **Media Support** (images and videos)
 - ✅ **Location Tracking** with coordinates and address
 - ✅ **AI-Powered Priority Detection** (automatically determines priority based on content)
+- ✅ **Image Verification** (n8n webhook validates images match issue description)
 - ✅ **Priority Levels** (Low, Medium, High, Critical)
 - ✅ **Custom Categories** with predefined options
 
