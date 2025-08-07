@@ -47,7 +47,7 @@ const ChatWidget = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [recordingTime, setRecordingTime] = useState(0);
-  const apiKey = "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";
+  const apiKey = "abc";
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
