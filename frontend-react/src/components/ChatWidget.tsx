@@ -47,7 +47,7 @@ const ChatWidget = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [recordingTime, setRecordingTime] = useState(0);
-  const apiKey = "abc";
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -171,6 +171,11 @@ const ChatWidget = () => {
 
   const sendAudioToGroq = async (audioBlob: Blob) => {
     try {
+      if (!apiKey) {
+        console.log('Error: GROQ_API_KEY environment variable is not set');
+        return;
+      }
+
       const audioFile = new File([audioBlob], 'recording.webm', { 
         type: audioBlob.type 
       });
@@ -302,6 +307,11 @@ const ChatWidget = () => {
 
   const generateTTS = async (text: string): Promise<string | null> => {
     try {
+      if (!apiKey) {
+        console.log('Error: GROQ_API_KEY environment variable is not set');
+        return null;
+      }
+
       console.log('Generating TTS for text:', text.substring(0, 100) + '...');
       console.log('Using API key:', apiKey.substring(0, 10) + '...');
       console.log('TTS Request body:', {
@@ -482,15 +492,15 @@ const ChatWidget = () => {
 
       {/* Chat Modal/Drawer */}
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex">
-          {/* Overlay */}
+        <div className="fixed inset-0 z-[100] flex">
+          {/* Overlay - covers entire screen including sidebar */}
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50"
+            className="fixed inset-0 bg-black bg-opacity-50 z-[100]"
             onClick={() => setIsOpen(false)}
           />
           
           {/* Chat Panel */}
-          <div className="fixed right-0 top-0 h-screen w-full max-w-md bg-background border-l border-border shadow-xl">
+          <div className="fixed right-0 top-0 h-screen w-full max-w-md bg-background border-l border-border shadow-xl z-[110]">
             <Card className="h-full flex flex-col">
               <CardHeader className="flex-shrink-0 border-b border-border">
                 <div className="flex items-center justify-between">
