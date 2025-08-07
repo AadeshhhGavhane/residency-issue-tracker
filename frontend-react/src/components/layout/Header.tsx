@@ -117,9 +117,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
           {/* Right side - User menu */}
           <div className="flex items-center space-x-4">
-            {/* Language Switcher */}
-            <LanguageSwitcher />
-            
+           
             {/* Conditionally render ChatWidget for non-committee and non-technician roles */}
             {user?.role !== 'committee' && user?.role !== 'technician' && <ChatWidget />}
             
